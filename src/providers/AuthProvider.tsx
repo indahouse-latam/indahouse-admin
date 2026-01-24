@@ -13,6 +13,14 @@ interface AuthContextType {
     isLoading: boolean;
 }
 
+export interface LocalStorageUser {
+    email: string;
+    id: string;
+    token: string;
+    walletId: string;
+    walletAddress: string;
+}
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -105,11 +113,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             body: JSON.stringify({ sessionToken, userType: 'ADMIN' })
         });
 
+        console.log('result', result);
         if (result.code === 'USER-200' && result.user) {
-            const userData = {
+            const userData: LocalStorageUser = {
                 email: result.user.email,
                 id: String(result.user.id),
-                token: sessionToken
+                token: sessionToken,
+                walletId: result.wallet.external_id,
+                walletAddress: result.wallet.address
             };
 
             setUser(userData);

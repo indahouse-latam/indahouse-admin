@@ -22,7 +22,7 @@ export default function MarketsPage() {
                     <div className="p-2 bg-primary/10 rounded-lg">
                         <Building className="w-4 h-4 text-primary" />
                     </div>
-                    <span className="font-medium">{prop.name_reference}</span>
+                    <span className="font-medium">{prop.nameReference || prop.name_reference}</span>
                 </div>
             )
         },
