@@ -1,14 +1,16 @@
 'use client';
 
-import { useState } from 'react';
-import { X, Calendar, DollarSign, MapPin, Hash, Plus, Trash2, ShieldCheck, Loader2 } from 'lucide-react';
-import { useMarkets } from '@/modules/markets/hooks/useMarkets';
+import { useState, useEffect } from 'react';
+import { X, DollarSign, Hash, Plus, Trash2, ShieldCheck, Loader2 } from 'lucide-react';
 import { useCampaigns } from '../hooks/useCampaigns';
 import { useContracts } from '@/hooks/useContracts';
-import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
-import { encodeFunctionData, parseUnits } from 'viem';
-import { CommitFactoryAbi } from '@/config/abis';
+import { encodeFunctionData, parseUnits, decodeEventLog, Abi } from 'viem';
+import { CommitCampaignFactoryAbi } from '@/config/abis';
 import { CONTRACTS, DEFAULT_CHAIN_ID } from '@/config/contracts';
+import { executeAndWaitForTransaction } from '@/utils/blockchain.utils';
+import { usePropertyTokens } from '@/modules/properties/hooks/usePropertyTokens';
+import { useMarkets } from '@/modules/markets/hooks/useMarkets';
+import { toast } from 'sonner';
 
 interface FeeTier {
     tier_order: number;
@@ -23,25 +25,33 @@ interface CreateCampaignModalProps {
 
 export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProps) {
     const { contracts } = useContracts();
+    const { data: propertyTokens, isLoading: isLoadingTokens } = usePropertyTokens();
     const { data: marketsData } = useMarkets();
-    const properties = marketsData?.properties || [];
-    const { createCampaign, isCreating: isApiCreating } = useCampaigns();
+    const { createCampaign } = useCampaigns();
 
-    const { writeContract, data: txHash, isPending: isTxPending } = useWriteContract();
-    const { isLoading: isWaitingForTx } = useWaitForTransactionReceipt({ hash: txHash });
+    const properties = marketsData?.properties || [];
+
+    const [isLoading, setIsLoading] = useState(false);
+    const [loadingStep, setLoadingStep] = useState<'creating' | 'confirming' | 'saving' | null>(null);
+    const [propertyTokensWithNames, setPropertyTokensWithNames] = useState<Array<{
+        token: any;
+        propertyName: string;
+    }>>([]);
 
     const [formData, setFormData] = useState({
-        property_id: '',
-        indaRoot: contracts.batch3.indaRootProxy,
-        baseToken: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', // USDC Base Sepolia
-        campaignOwner: contracts.batch2.indaAdmin,
+        property_token_id: '',
+        campaign_type: 1, // Default: SINGLE_PROPERTY
+        indaRoot: CONTRACTS.polygonAmoy.indaRoot,
+        baseToken: CONTRACTS.polygonAmoy.usdc,
+        campaignOwner: CONTRACTS.polygonAmoy.indaAdmin,
         token_address: '',
-        min_cap: '100', // In USD
-        max_cap: '500', // In USD
+        min_cap: '100',
+        max_cap: '500',
         price_per_token: '1',
         start_time: new Date().toISOString().split('T')[0],
         commit_deadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
         execute_after: new Date(Date.now() + 31 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        network: 'polygonAmoy' as 'baseSepolia' | 'polygonAmoy',
     });
 
     const [feeTiers, setFeeTiers] = useState<FeeTier[]>([
@@ -49,6 +59,29 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
         { tier_order: 2, deadline_timestamp: new Date(Date.now() + 20 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], fee_bp: 100 },
         { tier_order: 3, deadline_timestamp: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], fee_bp: 150 },
     ]);
+
+    useEffect(() => {
+        if (!propertyTokens || !properties.length) return;
+
+        console.log('🔍 Property Tokens:', propertyTokens);
+        console.log('🏠 Properties:', properties);
+
+        const tokensWithNames = propertyTokens.map((token) => {
+            const propertyId = token.propertyUuid || token.property_uuid;
+            const property = properties.find((p: any) => p.id === propertyId);
+            const propertyName = property?.nameReference || property?.name_reference || 'Unknown Property';
+
+            console.log(`✅ Token ${token.id} -> Property ${propertyId} -> Name: ${propertyName}`);
+            console.log(`   Token Address: ${token.tokenAddress || token.token_address}`);
+
+            return {
+                token,
+                propertyName
+            };
+        });
+
+        setPropertyTokensWithNames(tokensWithNames);
+    }, [propertyTokens, properties]);
 
     if (!isOpen) return null;
 
@@ -77,13 +110,25 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
+        if (!formData.property_token_id || !formData.token_address) {
+            toast.error('Please select a property token');
+            return;
+        }
+
+        setIsLoading(true);
+
         try {
-            // 1. Prepare on-chain data
+            // Step 1: Prepare blockchain data
+            setLoadingStep('creating');
+            console.log('📝 Creating campaign on blockchain...');
+
+            const chainId = DEFAULT_CHAIN_ID;
+
             const startTime = Math.floor(new Date(formData.start_time).getTime() / 1000);
             const commitDeadline = Math.floor(new Date(formData.commit_deadline).getTime() / 1000);
             const executeAfter = Math.floor(new Date(formData.execute_after).getTime() / 1000);
 
-            const minCap = parseUnits(formData.min_cap, 6); // Assuming USDC 6 decimals
+            const minCap = parseUnits(formData.min_cap, 6);
             const maxCap = parseUnits(formData.max_cap, 6);
 
             const encodedFeeTiers = feeTiers.map(tier => [
@@ -91,6 +136,7 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
                 Number(tier.fee_bp)
             ]);
 
+            // Encode the initialization data for the campaign
             const initData = encodeFunctionData({
                 abi: [
                     {
@@ -98,7 +144,7 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
                             { "name": "_indaRoot", "type": "address" },
                             { "name": "_baseToken", "type": "address" },
                             { "name": "_owner", "type": "address" },
-                            { "name": "_paymentTier", "type": "uint8" },
+                            { "name": "_campaignType", "type": "uint8" },
                             { "name": "_tokenAddress", "type": "address" },
                             { "name": "_startTime", "type": "uint256" },
                             { "name": "_commitDeadline", "type": "uint256" },
@@ -123,7 +169,7 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
                     formData.indaRoot as `0x${string}`,
                     formData.baseToken as `0x${string}`,
                     formData.campaignOwner as `0x${string}`,
-                    1,
+                    formData.campaign_type,
                     formData.token_address as `0x${string}`,
                     BigInt(startTime),
                     BigInt(commitDeadline),
@@ -134,39 +180,125 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
                 ]
             });
 
-            // 2. Transact on-chain
-            writeContract({
-                address: contracts.batch3.commitFactory as `0x${string}`,
-                abi: CommitFactoryAbi,
+            console.log('📦 Init Data:', initData);
+
+            // Step 2: Execute transaction and wait for confirmation
+            const { hash, receipt } = await executeAndWaitForTransaction({
+                contractAddress: CONTRACTS.polygonAmoy.commitFactory as `0x${string}`,
+                abi: CommitCampaignFactoryAbi as Abi,
                 functionName: 'createCampaign',
                 args: [initData],
-            }, {
-                onSuccess: (txHash) => {
-                    console.log('Transaction sent:', txHash);
-                    // placeholder for campaign address - real address will be synced by backend or extracted from events
-                    const generatedCampaignAddress = "0x" + "0".repeat(40);
+                chainId,
+            });
 
-                    createCampaign({
-                        ...formData,
-                        campaign_address: generatedCampaignAddress,
-                        fee_tiers: feeTiers.map(t => ({
-                            ...t,
-                            deadline_timestamp: new Date(t.deadline_timestamp).toISOString()
-                        }))
-                    }, {
-                        onSuccess: () => {
-                            onClose();
-                        }
+            console.log('✅ Transaction confirmed:', hash);
+
+            // Step 3: Parse CampaignCreated event
+            setLoadingStep('confirming');
+            const log = receipt.logs.find((log) => {
+                try {
+                    const decoded = decodeEventLog({
+                        abi: CommitCampaignFactoryAbi,
+                        data: log.data,
+                        topics: log.topics,
                     });
+                    return decoded.eventName === 'CampaignCreated';
+                } catch {
+                    return false;
                 }
             });
 
-        } catch (error) {
-            console.error('Failed to create campaign:', error);
+            if (!log) {
+                throw new Error('CampaignCreated event not found in transaction receipt');
+            }
+
+            const decoded = decodeEventLog({
+                abi: CommitCampaignFactoryAbi,
+                data: log.data,
+                topics: log.topics,
+            });
+            const campaignAddress = decoded?.args?.campaign as string;
+
+            console.log('🎯 Campaign created at address:', campaignAddress);
+
+            // Step 4: Save to database
+            setLoadingStep('saving');
+
+            // Get the property_id from the selected token
+            const selectedToken = propertyTokens?.find(t => t.id === formData.property_token_id);
+            const propertyId = selectedToken?.propertyUuid || selectedToken?.property_uuid;
+
+            if (!propertyId) {
+                throw new Error('Property ID not found for selected token');
+            }
+
+            await new Promise<void>((resolve, reject) => {
+                createCampaign({
+                    property_id: propertyId,
+                    campaign_address: campaignAddress,
+                    token_address: formData.token_address,
+                    min_cap: formData.min_cap,
+                    max_cap: formData.max_cap,
+                    start_time: formData.start_time,
+                    commit_deadline: formData.commit_deadline,
+                    execute_after: formData.execute_after,
+                    price_per_token: formData.price_per_token,
+                    fee_tiers: feeTiers.map(t => ({
+                        ...t,
+                        deadline_timestamp: new Date(t.deadline_timestamp).toISOString()
+                    }))
+                }, {
+                    onSuccess: () => {
+                        console.log('✅ Campaign saved to database');
+                        resolve();
+                    },
+                    onError: (error: any) => {
+                        reject(error);
+                    },
+                });
+            });
+
+            // Success!
+            toast.success('Campaign created successfully!', {
+                description: `Campaign address: ${campaignAddress}`,
+                duration: 20000
+            });
+
+            // Reset form
+            setFormData({
+                property_token_id: '',
+                campaign_type: 1,
+                indaRoot: CONTRACTS.polygonAmoy.indaRoot,
+                baseToken: CONTRACTS.polygonAmoy.usdc,
+                campaignOwner: CONTRACTS.polygonAmoy.indaAdmin,
+                token_address: '',
+                min_cap: '100',
+                max_cap: '500',
+                price_per_token: '1',
+                start_time: new Date().toISOString().split('T')[0],
+                commit_deadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                execute_after: new Date(Date.now() + 31 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                network: 'polygonAmoy',
+            });
+            onClose();
+
+        } catch (error: any) {
+            console.error('❌ Error creating campaign:', error);
+            toast.error('Failed to create campaign', {
+                description: error.message || 'Unknown error occurred',
+            });
+        } finally {
+            setIsLoading(false);
+            setLoadingStep(null);
         }
     };
 
-    const isPending = isTxPending || isWaitingForTx || isApiCreating;
+    const getLoadingMessage = () => {
+        if (loadingStep === 'creating') return 'Creating campaign...';
+        if (loadingStep === 'confirming') return 'Confirming transaction...';
+        if (loadingStep === 'saving') return 'Saving to database...';
+        return 'Processing...';
+    };
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 text-foreground">
@@ -192,32 +324,68 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
                         <label className="text-xs font-bold uppercase tracking-widest text-primary/80 mb-4 block">
                             1. Propiedad y Direcciones Base
                         </label>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div className="space-y-2">
-                                <label className="text-[10px] font-bold uppercase text-muted-foreground">Seleccionar Propiedad</label>
+                                <label className="text-[10px] font-bold uppercase text-muted-foreground">
+                                    Seleccionar Property Token {propertyTokensWithNames.length > 0 && `(${propertyTokensWithNames.length})`}
+                                </label>
                                 <select
-                                    className="w-full bg-secondary/20 border border-border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-primary h-[42px]"
-                                    value={formData.property_id}
-                                    onChange={(e) => setFormData({ ...formData, property_id: e.target.value })}
+                                    className="w-full bg-background border border-border rounded-lg px-4 py-2.5 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary h-[42px]"
+                                    value={formData.property_token_id}
+                                    onChange={(e) => {
+                                        const selectedTokenId = e.target.value;
+                                        const selectedTokenItem = propertyTokensWithNames.find(item => item.token.id === selectedTokenId);
+                                        const tokenAddr = selectedTokenItem?.token.tokenAddress || selectedTokenItem?.token.token_address || '';
+
+                                        console.log('📌 Selected:', { selectedTokenId, tokenAddr, item: selectedTokenItem });
+
+                                        setFormData({
+                                            ...formData,
+                                            property_token_id: selectedTokenId,
+                                            token_address: tokenAddr
+                                        });
+                                    }}
                                     required
+                                    disabled={isLoadingTokens || isLoading}
                                 >
-                                    <option value="" disabled>Seleccione una propiedad...</option>
-                                    {properties.map((prop: any) => (
-                                        <option key={prop.id} value={prop.id}>{prop.name_reference}</option>
-                                    ))}
+                                    <option value="" disabled>Seleccione un property token...</option>
+                                    {isLoadingTokens ? (
+                                        <option value="" disabled>Cargando tokens...</option>
+                                    ) : propertyTokensWithNames.length === 0 ? (
+                                        <option value="" disabled>No hay property tokens disponibles</option>
+                                    ) : (
+                                        propertyTokensWithNames.map((item) => (
+                                            <option key={item.token.id} value={item.token.id}>
+                                                {item.propertyName} - {item.token.symbol}
+                                            </option>
+                                        ))
+                                    )}
                                 </select>
                             </div>
                             <div className="space-y-2">
-                                <label className="text-[10px] font-bold uppercase text-muted-foreground">Token de la Propiedad (address)</label>
+                                <label className="text-[10px] font-bold uppercase text-muted-foreground">Campaign Type</label>
+                                <select
+                                    className="w-full bg-background border border-border rounded-lg px-4 py-2.5 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary h-[42px]"
+                                    value={formData.campaign_type}
+                                    onChange={(e) => setFormData({ ...formData, campaign_type: Number(e.target.value) })}
+                                    required
+                                    disabled={isLoading}
+                                >
+                                    <option value={0}>Pool INDH</option>
+                                    <option value={1}>Single Property</option>
+                                    <option value={2}>Custom Token</option>
+                                </select>
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-bold uppercase text-muted-foreground">Token Address (auto-populated)</label>
                                 <div className="relative">
                                     <Hash className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                                     <input
                                         type="text"
-                                        required
-                                        className="w-full bg-secondary/20 border border-border rounded-lg pl-10 pr-4 py-2 text-sm outline-none focus:ring-1 focus:ring-primary"
-                                        placeholder="0x..."
+                                        readOnly
+                                        className="w-full bg-secondary/20 border border-border rounded-lg pl-10 pr-4 py-2 text-sm outline-none cursor-not-allowed opacity-60"
+                                        placeholder="Select a property token first..."
                                         value={formData.token_address}
-                                        onChange={(e) => setFormData({ ...formData, token_address: e.target.value })}
                                     />
                                 </div>
                             </div>
@@ -410,13 +578,13 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
                         </button>
                         <button
                             type="submit"
-                            disabled={isPending || !formData.property_id}
+                            disabled={isLoading || !formData.property_token_id}
                             className="px-8 py-2.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all disabled:opacity-50 flex items-center gap-2 text-sm font-bold shadow-lg shadow-primary/20"
                         >
-                            {isPending ? (
+                            {isLoading ? (
                                 <>
                                     <Loader2 className="w-4 h-4 animate-spin" />
-                                    Procesando...
+                                    {getLoadingMessage()}
                                 </>
                             ) : (
                                 'Lanzar Campaña On-Chain'

@@ -1,13 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { X, MapPin, DollarSign, Home, Layout, Plus, Trash2, Loader2, Building2, Image as ImageIcon, FileText, List } from 'lucide-react';
+import { X, DollarSign, Home, Layout, Plus, Trash2, Loader2, Building2, Image as ImageIcon, FileText, List } from 'lucide-react';
 import { useUsers } from '@/modules/users/hooks/useUsers';
 import { fetchApi } from '@/utils/api';
 import { useQueryClient } from '@tanstack/react-query';
 import { DragDropUpload } from '@/components/DragDropUpload';
 import { BucketService } from '@/services/BucketService';
 import { toast } from 'sonner';
+import { LocationFields, type LocationData } from '@/components/LocationFields';
 
 interface RegisterPropertyModalProps {
     isOpen: boolean;
@@ -35,11 +36,11 @@ export function RegisterPropertyModal({ isOpen, onClose }: RegisterPropertyModal
         buyback_time: '12',
         location: {
             address: '',
-            city: 'Medellín',
-            state: 'Antioquia',
-            country: 'Colombia',
-            zip_code: '05001'
-        },
+            full_location: '',
+            short_location: '',
+            latitude: undefined,
+            longitude: undefined
+        } as LocationData,
         main_characteristics: [
             { label: 'Habitaciones', value: '2', icon: 'bed' },
             { label: 'Baños', value: '2', icon: 'bath' },
@@ -115,18 +116,37 @@ export function RegisterPropertyModal({ isOpen, onClose }: RegisterPropertyModal
                 user_id: formData.user_id,
                 name_reference: formData.name_reference,
                 description: formData.description,
-                price: parseFloat(formData.price),
-                valuation: parseFloat(formData.valuation),
-                property_type: parseInt(formData.property_type),
-                stratum: parseInt(formData.stratum),
-                built_time: parseInt(formData.built_time.toString()),
+                price: Number.parseFloat(formData.price),
+                valuation: Number.parseFloat(formData.valuation),
+                property_type: Number.parseInt(formData.property_type),
+                stratum: Number.parseInt(formData.stratum),
+                built_time: Number.parseInt(formData.built_time.toString()),
                 status: 'VERIFIED',
-                location: formData.location,
-                main_characteristics: formData.main_characteristics,
-                extra_characteristics: formData.extra_characteristics.map(c => ({ label: c.label, value: 'Yes' })),
-                monthly_expenses: formData.monthly_expenses,
+                location: {
+                    address: formData.location.address,
+                    full_location: formData.location.full_location,
+                    short_location: formData.location.short_location,
+                    ...(formData.location.latitude && { latitude: formData.location.latitude }),
+                    ...(formData.location.longitude && { longitude: formData.location.longitude })
+                },
+                main_characteristics: formData.main_characteristics.map(char => ({
+                    name: char.label,
+                    description: char.value
+                })),
+                extra_characteristics: formData.extra_characteristics.map(char => ({
+                    name: char.label,
+                    description: 'Yes'
+                })),
+                monthly_expenses: formData.monthly_expenses.map(expense => ({
+                    name: expense.label,
+                    price: Number.parseFloat(expense.amount),
+                    icon: 'dollar-sign'
+                })),
                 files: formattedFiles
             };
+
+            console.log('📦 Payload to be sent:', payload);
+            console.log('📸 Uploaded images:', uploadedImages);
 
             await fetchApi('/properties', {
                 method: 'POST',
@@ -137,8 +157,28 @@ export function RegisterPropertyModal({ isOpen, onClose }: RegisterPropertyModal
             toast.success("Propiedad registrada exitosamente");
             onClose();
         } catch (error) {
-            console.error('Failed to register property:', error);
-            toast.error("Error al registrar la propiedad");
+            console.error('❌ Failed to register property:', {
+                error,
+                errorMessage: error instanceof Error ? error.message : 'Unknown error',
+                errorStack: error instanceof Error ? error.stack : undefined,
+                formData: {
+                    user_id: formData.user_id,
+                    name_reference: formData.name_reference,
+                    price: formData.price,
+                    valuation: formData.valuation,
+                    property_type: formData.property_type,
+                    stratum: formData.stratum,
+                    built_time: formData.built_time,
+                    location: formData.location,
+                    main_characteristics: formData.main_characteristics,
+                    extra_characteristics: formData.extra_characteristics,
+                    monthly_expenses: formData.monthly_expenses,
+                    images_count: formData.files.images.length
+                }
+            });
+            
+            const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+            toast.error(`Error al registrar la propiedad: ${errorMessage}`);
         } finally {
             setIsSubmitting(false);
         }
@@ -210,7 +250,7 @@ export function RegisterPropertyModal({ isOpen, onClose }: RegisterPropertyModal
                             Landowner (Propietario)
                         </label>
                         <select
-                            className="w-full bg-secondary/20 border border-border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500"
+                            className="w-full bg-secondary-100 border border-secondary-300 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                             value={formData.user_id}
                             onChange={(e) => setFormData({ ...formData, user_id: e.target.value })}
                             required
@@ -235,7 +275,7 @@ export function RegisterPropertyModal({ isOpen, onClose }: RegisterPropertyModal
                                     <input
                                         type="text"
                                         required
-                                        className="w-full bg-secondary/20 border border-border rounded-lg px-4 py-2 text-sm"
+                                        className="w-full bg-secondary-100 border border-secondary-300 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
                                         placeholder="Ej: Apartamento 402 - Living"
                                         value={formData.name_reference}
                                         onChange={(e) => setFormData({ ...formData, name_reference: e.target.value })}
@@ -250,7 +290,7 @@ export function RegisterPropertyModal({ isOpen, onClose }: RegisterPropertyModal
                                             <input
                                                 type="number"
                                                 required
-                                                className="w-full bg-secondary/20 border border-border rounded-lg pl-10 pr-4 py-2 text-sm text-emerald-400 font-bold"
+                                                className="w-full bg-secondary-100 border border-secondary-300 rounded-lg pl-10 pr-4 py-2 text-sm text-success-600 font-bold focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
                                                 value={formData.price}
                                                 onChange={(e) => setFormData({ ...formData, price: e.target.value })}
                                             />
@@ -263,7 +303,7 @@ export function RegisterPropertyModal({ isOpen, onClose }: RegisterPropertyModal
                                             <input
                                                 type="number"
                                                 required
-                                                className="w-full bg-secondary/20 border border-border rounded-lg pl-10 pr-4 py-2 text-sm"
+                                                className="w-full bg-secondary-100 border border-secondary-300 rounded-lg pl-10 pr-4 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
                                                 value={formData.valuation}
                                                 onChange={(e) => setFormData({ ...formData, valuation: e.target.value })}
                                             />
@@ -276,7 +316,7 @@ export function RegisterPropertyModal({ isOpen, onClose }: RegisterPropertyModal
                                         <label className="text-[10px] font-bold uppercase text-muted-foreground">Antigüedad (Años)</label>
                                         <input
                                             type="number"
-                                            className="w-full bg-secondary/20 border border-border rounded-lg px-4 py-2 text-sm"
+                                            className="w-full bg-secondary-100 border border-secondary-300 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
                                             value={formData.built_time}
                                             onChange={(e) => setFormData({ ...formData, built_time: e.target.value })}
                                         />
@@ -285,7 +325,7 @@ export function RegisterPropertyModal({ isOpen, onClose }: RegisterPropertyModal
                                         <label className="text-[10px] font-bold uppercase text-muted-foreground">Tiempo Recompra (Meses)</label>
                                         <input
                                             type="number"
-                                            className="w-full bg-secondary/20 border border-border rounded-lg px-4 py-2 text-sm"
+                                            className="w-full bg-secondary-100 border border-secondary-300 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
                                             value={formData.buyback_time}
                                             onChange={(e) => setFormData({ ...formData, buyback_time: e.target.value })}
                                         />
@@ -301,7 +341,7 @@ export function RegisterPropertyModal({ isOpen, onClose }: RegisterPropertyModal
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-bold uppercase text-muted-foreground">Descripción Completa</label>
                                     <textarea
-                                        className="w-full bg-secondary/20 border border-border rounded-lg px-4 py-2 text-sm h-40 resize-none"
+                                        className="w-full bg-secondary-100 border border-secondary-300 rounded-lg px-4 py-2 text-sm h-40 resize-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
                                         placeholder="Describe la propiedad en detalle..."
                                         value={formData.description}
                                         onChange={(e) => setFormData({ ...formData, description: e.target.value })}
@@ -330,7 +370,7 @@ export function RegisterPropertyModal({ isOpen, onClose }: RegisterPropertyModal
                                         {formData.main_characteristics.map((char, index) => (
                                             <div key={index} className="flex gap-2 group">
                                                 <input
-                                                    className="flex-1 bg-secondary/10 border border-border/50 rounded-lg px-3 py-1.5 text-xs"
+                                                    className="flex-1 bg-secondary-100 border border-secondary-300 rounded-lg px-3 py-1.5 text-xs focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
                                                     placeholder="Etiqueta (ej: Baños)"
                                                     value={char.label}
                                                     onChange={(e) => {
@@ -340,7 +380,7 @@ export function RegisterPropertyModal({ isOpen, onClose }: RegisterPropertyModal
                                                     }}
                                                 />
                                                 <input
-                                                    className="w-24 bg-secondary/10 border border-border/50 rounded-lg px-3 py-1.5 text-xs text-center"
+                                                    className="w-24 bg-secondary-100 border border-secondary-300 rounded-lg px-3 py-1.5 text-xs text-center focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
                                                     placeholder="Valor"
                                                     value={char.value}
                                                     onChange={(e) => {
@@ -374,7 +414,7 @@ export function RegisterPropertyModal({ isOpen, onClose }: RegisterPropertyModal
                                     <div className="flex gap-2">
                                         <input
                                             id="new-extra"
-                                            className="flex-1 bg-secondary/20 border border-border rounded-lg px-4 py-2 text-sm"
+                                            className="flex-1 bg-secondary-100 border border-secondary-300 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
                                             placeholder="Ej: Piscina, Gimnasio (Enter para agregar)"
                                             onKeyDown={(e) => {
                                                 if (e.key === 'Enter') {
@@ -461,43 +501,11 @@ export function RegisterPropertyModal({ isOpen, onClose }: RegisterPropertyModal
                     )}
 
                     {activeTab === 'location' && (
-                        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-bold uppercase text-muted-foreground">Dirección Completa</label>
-                                <input
-                                    type="text"
-                                    required
-                                    className="w-full bg-secondary/20 border border-border rounded-lg px-4 py-2 text-sm"
-                                    value={formData.location.address}
-                                    onChange={(e) => setFormData({ ...formData, location: { ...formData.location, address: e.target.value } })}
-                                />
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-bold uppercase text-muted-foreground">Ciudad</label>
-                                    <input
-                                        type="text"
-                                        className="w-full bg-secondary/20 border border-border rounded-lg px-4 py-2 text-sm"
-                                        value={formData.location.city}
-                                        onChange={(e) => setFormData({ ...formData, location: { ...formData.location, city: e.target.value } })}
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-bold uppercase text-muted-foreground">Departamento / Estado</label>
-                                    <input
-                                        type="text"
-                                        className="w-full bg-secondary/20 border border-border rounded-lg px-4 py-2 text-sm"
-                                        value={formData.location.state}
-                                        onChange={(e) => setFormData({ ...formData, location: { ...formData.location, state: e.target.value } })}
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-500 text-xs text-center">
-                                <MapPin className="w-4 h-4 mx-auto mb-2" />
-                                La integración con Google Maps para coordenadas automáticas se implementará próximamente en el Admin. Por ahora, ingresa la dirección exacta.
-                            </div>
+                        <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                            <LocationFields
+                                value={formData.location}
+                                onChange={(location) => setFormData({ ...formData, location })}
+                            />
                         </div>
                     )}
 

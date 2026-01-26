@@ -6,43 +6,58 @@ import { DataTable } from "@/components/DataTable";
 import { useCampaigns, Campaign } from "@/modules/campaigns/hooks/useCampaigns";
 import { CreateCampaignModal } from "@/modules/campaigns/components/CreateCampaignModal";
 import { RegisterPropertyModal } from "@/modules/campaigns/components/RegisterPropertyModal";
+import { CreatePropertyTokenModal } from "@/modules/properties/components/CreatePropertyTokenModal";
+import { CampaignDetailModal } from "@/modules/campaigns/components/CampaignDetailModal";
 import {
     Building2,
     ExternalLink,
     Activity,
     Trash2,
     CheckCircle,
-    AlertTriangle,
     Plus,
-    Layout
+    Coins,
 } from "lucide-react";
 
 export default function AssetsPage() {
     const { data: campaigns, isLoading, terminateCampaign, finalizeCampaign } = useCampaigns();
     const [isCampaignModalOpen, setIsCampaignModalOpen] = useState(false);
     const [isPropertyModalOpen, setIsPropertyModalOpen] = useState(false);
+    const [isTokenModalOpen, setIsTokenModalOpen] = useState(false);
+    const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
+    const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
     const columns = [
         {
             header: 'Propiedad / Activo',
-            accessor: (campaign: Campaign) => (
-                <div className="flex flex-col">
-                    <span className="font-medium">{campaign.property?.name_reference}</span>
-                    <span className="text-[10px] text-muted-foreground font-mono">{campaign.property?.property_reference}</span>
-                </div>
-            )
+            accessor: (campaign: Campaign) => {
+                const propertyName = (campaign.property as any)?.nameReference ||
+                                   campaign.property?.name_reference ||
+                                   'Sin nombre';
+                const propertyRef = (campaign.property as any)?.propertyReference ||
+                                  (campaign.property as any)?.property_reference ||
+                                  'N/A';
+                return (
+                    <div className="flex flex-col">
+                        <span className="font-medium">{propertyName}</span>
+                        <span className="text-[10px] text-muted-foreground font-mono">{propertyRef}</span>
+                    </div>
+                );
+            }
         },
         {
             header: 'Campaña',
-            accessor: (campaign: Campaign) => (
-                <div className="flex flex-col gap-1">
-                    <div className="flex items-center gap-1.5 text-xs">
-                        <Activity className="w-3 h-3 text-muted-foreground" />
-                        <span className="font-mono text-[10px]">{campaign.campaign_address}</span>
-                        <ExternalLink className="w-2.5 h-2.5 text-muted-foreground hover:text-primary cursor-pointer" />
+            accessor: (campaign: Campaign) => {
+                const campaignAddr = (campaign as any).campaignAddress || campaign.campaign_address;
+                return (
+                    <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-1.5 text-xs">
+                            <Activity className="w-3 h-3 text-muted-foreground" />
+                            <span className="font-mono text-[10px]">{campaignAddr}</span>
+                            <ExternalLink className="w-2.5 h-2.5 text-muted-foreground hover:text-primary cursor-pointer" />
+                        </div>
                     </div>
-                </div>
-            )
+                );
+            }
         },
         {
             header: 'Progreso',
@@ -114,6 +129,13 @@ export default function AssetsPage() {
                             Registrar Propiedad
                         </button>
                         <button
+                            onClick={() => setIsTokenModalOpen(true)}
+                            className="bg-secondary hover:bg-secondary/80 border border-border px-4 py-2 rounded-xl flex items-center gap-2 text-sm font-bold transition-all shadow-sm"
+                        >
+                            <Coins className="w-4 h-4" />
+                            Crear Token
+                        </button>
+                        <button
                             onClick={() => setIsCampaignModalOpen(true)}
                             className="bg-primary text-primary-foreground px-4 py-2 rounded-xl flex items-center gap-2 text-sm font-bold hover:bg-primary/90 transition-all shadow-lg shadow-primary/20"
                         >
@@ -128,7 +150,10 @@ export default function AssetsPage() {
                         data={campaigns || []}
                         columns={columns}
                         isLoading={isLoading}
-                        onRowClick={(campaign) => console.log('View campaign detail', campaign.id)}
+                        onRowClick={(campaign) => {
+                            setSelectedCampaign(campaign);
+                            setIsDetailModalOpen(true);
+                        }}
                     />
                 </div>
             </div>
@@ -142,6 +167,22 @@ export default function AssetsPage() {
                 isOpen={isPropertyModalOpen}
                 onClose={() => setIsPropertyModalOpen(false)}
             />
+
+            <CreatePropertyTokenModal
+                isOpen={isTokenModalOpen}
+                onClose={() => setIsTokenModalOpen(false)}
+            />
+
+            {selectedCampaign && (
+                <CampaignDetailModal
+                    campaign={selectedCampaign}
+                    isOpen={isDetailModalOpen}
+                    onClose={() => {
+                        setIsDetailModalOpen(false);
+                        setSelectedCampaign(null);
+                    }}
+                />
+            )}
         </AdminLayout>
     );
 }

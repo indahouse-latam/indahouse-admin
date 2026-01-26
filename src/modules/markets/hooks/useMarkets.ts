@@ -4,11 +4,15 @@ import { useQuery } from '@tanstack/react-query';
 import { fetchApi } from '@/utils/api';
 
 export interface Property {
-    id: number;
-    name_reference: string;
+    id: string;
+    nameReference: string; // Backend usa camelCase
+    name_reference?: string; // Fallback para compatibilidad
     status: string;
     valuation: number;
-    location: {
+    userId?: string;
+    description?: string;
+    price?: string;
+    location?: {
         address: string;
         city: string;
         department: string;
