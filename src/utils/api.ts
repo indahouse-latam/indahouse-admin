@@ -1,3 +1,5 @@
+import { config } from '@/config/config';
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 export async function fetchApi(endpoint: string, options: RequestInit = {}) {
@@ -8,10 +10,12 @@ export async function fetchApi(endpoint: string, options: RequestInit = {}) {
     const url = `${API_URL}${endpoint}`;
     const requestConfig = {
         ...options,
+        credentials: 'include' as RequestCredentials,
         headers: {
             'Content-Type': 'application/json',
             'Authorization': token ? `Bearer ${token}` : '',
             'UserId': user?.id ? String(user.id) : '1', // Default to 1 if not present for bypass
+            'Origin': config.appUrl || 'https://localhost:3000',
             ...options.headers,
         },
     };
