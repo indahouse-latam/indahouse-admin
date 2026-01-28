@@ -16,7 +16,7 @@ export const CONTRACTS = {
         distributorProxy: "0xe7A2cC2f4da50054D80Db0E10e34652B9fb2Fb3C",
     },
     polygonAmoy: {
-        indaRoot: "0x23bd14Bc1B3B64736893A775A9CF98a2e315e357",
+        indaRoot: "0xE1F2742f86A4b49b34F954c3F96D298dca02eB0C",
         baseToken: "0x6C9A47762AAE694067903F4A7aB65E074488c625", // COPS/USDC on Amoy Testnet
         cops: "0x6C9A47762AAE694067903F4A7aB65E074488c625",
         usdc: "0x6C9A47762AAE694067903F4A7aB65E074488c625",
