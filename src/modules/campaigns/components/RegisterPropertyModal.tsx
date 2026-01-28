@@ -1,14 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { X, DollarSign, Home, Layout, Plus, Trash2, Loader2, Building2, Image as ImageIcon, FileText, List } from 'lucide-react';
+import { X, DollarSign, Home, Layout, Plus, Trash2, Loader2, Building2, FileText, List } from 'lucide-react';
 import { useUsers } from '@/modules/users/hooks/useUsers';
 import { fetchApi } from '@/utils/api';
 import { useQueryClient } from '@tanstack/react-query';
-import { DragDropUpload } from '@/components/DragDropUpload';
-import { BucketService } from '@/services/BucketService';
 import { toast } from 'sonner';
 import { LocationFields, type LocationData } from '@/components/LocationFields';
+import { PropertyMultimediaSection } from './PropertyMultimediaSection';
 
 interface RegisterPropertyModalProps {
     isOpen: boolean;
@@ -23,6 +22,8 @@ export function RegisterPropertyModal({ isOpen, onClose }: RegisterPropertyModal
     const queryClient = useQueryClient();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [activeTab, setActiveTab] = useState<TabType>('general');
+    const [createdPropertyId, setCreatedPropertyId] = useState<string | null>(null);
+    const [propertyData, setPropertyData] = useState<any>(null);
 
     const [formData, setFormData] = useState({
         user_id: '',
@@ -34,6 +35,7 @@ export function RegisterPropertyModal({ isOpen, onClose }: RegisterPropertyModal
         stratum: '4',
         built_time: '1',
         buyback_time: '12',
+        status: 'VERIFIED' as 'VERIFIED' | 'CREATED' | 'PENDING' | 'IN_PROGRESS' | 'DENIED' | 'BOUGHT',
         location: {
             address: '',
             full_location: '',
@@ -54,34 +56,10 @@ export function RegisterPropertyModal({ isOpen, onClose }: RegisterPropertyModal
         payment_plan: {
             booking_amount: '5000000',
             installments: '12'
-        },
-        files: {
-            images: [] as File[],
-            documents: [] as File[]
         }
     });
 
     if (!isOpen) return null;
-
-    const handleImageDrop = (files: File[]) => {
-        setFormData(prev => ({
-            ...prev,
-            files: {
-                ...prev.files,
-                images: [...prev.files.images, ...files]
-            }
-        }));
-    };
-
-    const removeFile = (type: 'images' | 'documents', index: number) => {
-        setFormData(prev => ({
-            ...prev,
-            files: {
-                ...prev.files,
-                [type]: prev.files[type].filter((_, i) => i !== index)
-            }
-        }));
-    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -94,24 +72,6 @@ export function RegisterPropertyModal({ isOpen, onClose }: RegisterPropertyModal
         setIsSubmitting(true);
 
         try {
-            // 1. Upload Images/Docs first if any
-            let uploadedImages: string[] = [];
-
-            if (formData.files.images.length > 0) {
-                const bucketService = new BucketService(formData.user_id);
-                // Retrieve token from admin_user object in localStorage
-                const storedUser = localStorage.getItem('admin_user');
-                const user = storedUser ? JSON.parse(storedUser) : null;
-                const token = user?.token || '';
-                uploadedImages = await bucketService.uploadImages(formData.files.images, token);
-            }
-
-            const formattedFiles = uploadedImages.map(url => ({
-                resource_link: url,
-                resource_type: 1 // Image
-            }));
-
-            // 2. Create Property
             const payload = {
                 user_id: formData.user_id,
                 name_reference: formData.name_reference,
@@ -121,7 +81,7 @@ export function RegisterPropertyModal({ isOpen, onClose }: RegisterPropertyModal
                 property_type: Number.parseInt(formData.property_type),
                 stratum: Number.parseInt(formData.stratum),
                 built_time: Number.parseInt(formData.built_time.toString()),
-                status: 'VERIFIED',
+                status: formData.status,
                 location: {
                     address: formData.location.address,
                     full_location: formData.location.full_location,
@@ -141,23 +101,28 @@ export function RegisterPropertyModal({ isOpen, onClose }: RegisterPropertyModal
                     name: expense.label,
                     price: Number.parseFloat(expense.amount),
                     icon: 'dollar-sign'
-                })),
-                files: formattedFiles
+                }))
             };
 
             console.log('📦 Payload to be sent:', payload);
-            console.log('📸 Uploaded images:', uploadedImages);
 
-            await fetchApi('/properties', {
+            const response = await fetchApi('/properties', {
                 method: 'POST',
                 body: JSON.stringify(payload)
             });
 
+            const newProperty = response.property || response;
+            console.log('✅ Property created:', newProperty);
+
+            setCreatedPropertyId(newProperty.id);
+            setPropertyData(newProperty);
+            setActiveTab('multimedia');
+            toast.success("Propiedad creada exitosamente. Ahora puedes agregar multimedia.");
+
             queryClient.invalidateQueries({ queryKey: ['markets'] });
-            toast.success("Propiedad registrada exitosamente");
-            onClose();
+            queryClient.invalidateQueries({ queryKey: ['properties'] });
         } catch (error) {
-            console.error('❌ Failed to register property:', {
+            console.error('❌ Failed to create property:', {
                 error,
                 errorMessage: error instanceof Error ? error.message : 'Unknown error',
                 errorStack: error instanceof Error ? error.stack : undefined,
@@ -172,13 +137,12 @@ export function RegisterPropertyModal({ isOpen, onClose }: RegisterPropertyModal
                     location: formData.location,
                     main_characteristics: formData.main_characteristics,
                     extra_characteristics: formData.extra_characteristics,
-                    monthly_expenses: formData.monthly_expenses,
-                    images_count: formData.files.images.length
+                    monthly_expenses: formData.monthly_expenses
                 }
             });
-            
+
             const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
-            toast.error(`Error al registrar la propiedad: ${errorMessage}`);
+            toast.error(`Error al crear la propiedad: ${errorMessage}`);
         } finally {
             setIsSubmitting(false);
         }
@@ -208,8 +172,18 @@ export function RegisterPropertyModal({ isOpen, onClose }: RegisterPropertyModal
                             <Building2 className="w-5 h-5 text-indigo-400" />
                         </div>
                         <div>
-                            <h3 className="text-xl font-bold">Registrar Nuevo Activo</h3>
-                            <p className="text-xs text-muted-foreground">Ingresa los detalles técnicos y financieros de la propiedad.</p>
+                            <h3 className="text-xl font-bold">
+                                {createdPropertyId
+                                    ? `Agregar Multimedia - ${propertyData?.name_reference || 'Propiedad'}`
+                                    : 'Registrar Nuevo Activo'
+                                }
+                            </h3>
+                            <p className="text-xs text-muted-foreground">
+                                {createdPropertyId
+                                    ? 'Gestiona el multimedia de la propiedad creada.'
+                                    : 'Ingresa los detalles técnicos y financieros de la propiedad.'
+                                }
+                            </p>
                         </div>
                     </div>
                     <button onClick={onClose} className="p-2 hover:bg-secondary rounded-full transition-colors">
@@ -220,47 +194,53 @@ export function RegisterPropertyModal({ isOpen, onClose }: RegisterPropertyModal
                 <div className="flex border-b border-border">
                     <button
                         onClick={() => setActiveTab('general')}
-                        className={`px-6 py-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'general' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+                        disabled={!!createdPropertyId}
+                        className={`px-6 py-3 text-sm font-bold border-b-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${activeTab === 'general' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
                     >
                         General
                     </button>
                     <button
                         onClick={() => setActiveTab('details')}
-                        className={`px-6 py-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'details' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+                        disabled={!!createdPropertyId}
+                        className={`px-6 py-3 text-sm font-bold border-b-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${activeTab === 'details' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
                     >
                         Detalles
                     </button>
                     <button
-                        onClick={() => setActiveTab('multimedia')}
-                        className={`px-6 py-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'multimedia' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
-                    >
-                        Multimedia
-                    </button>
-                    <button
                         onClick={() => setActiveTab('location')}
-                        className={`px-6 py-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'location' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+                        disabled={!!createdPropertyId}
+                        className={`px-6 py-3 text-sm font-bold border-b-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${activeTab === 'location' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
                     >
                         Ubicación
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('multimedia')}
+                        disabled={!createdPropertyId}
+                        className={`px-6 py-3 text-sm font-bold border-b-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${activeTab === 'multimedia' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+                    >
+                        Multimedia
                     </button>
                 </div>
 
                 <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-8">
-                    <div className="mb-8 space-y-4 p-4 rounded-xl bg-indigo-500/5 border border-indigo-500/10">
-                        <label className="text-xs font-bold uppercase tracking-widest text-indigo-400 block mb-2">
-                            Landowner (Propietario)
-                        </label>
-                        <select
-                            className="w-full bg-secondary-100 border border-secondary-300 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                            value={formData.user_id}
-                            onChange={(e) => setFormData({ ...formData, user_id: e.target.value })}
-                            required
-                        >
-                            <option value="" disabled>Seleccione el propietario legal...</option>
-                            {users.map((user: any) => (
-                                <option key={user.id} value={user.id}>{user.name} {user.lastname} ({user.email})</option>
-                            ))}
-                        </select>
-                    </div>
+                    {!createdPropertyId && (
+                        <div className="mb-8 space-y-4 p-4 rounded-xl bg-indigo-500/5 border border-indigo-500/10">
+                            <label className="text-xs font-bold uppercase tracking-widest text-indigo-400 block mb-2">
+                                Landowner (Propietario)
+                            </label>
+                            <select
+                                className="w-full bg-secondary-100 border border-secondary-300 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                                value={formData.user_id}
+                                onChange={(e) => setFormData({ ...formData, user_id: e.target.value })}
+                                required
+                            >
+                                <option value="" disabled>Seleccione el propietario legal...</option>
+                                {users.map((user: any) => (
+                                    <option key={user.id} value={user.id}>{user.name} {user.lastname} ({user.email})</option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
 
                     {activeTab === 'general' && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
@@ -330,6 +310,23 @@ export function RegisterPropertyModal({ isOpen, onClose }: RegisterPropertyModal
                                             onChange={(e) => setFormData({ ...formData, buyback_time: e.target.value })}
                                         />
                                     </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-bold uppercase text-muted-foreground">Estado de la Propiedad</label>
+                                    <select
+                                        className="w-full bg-secondary-100 border border-secondary-300 rounded-lg px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                                        value={formData.status}
+                                        onChange={(e) => setFormData({ ...formData, status: e.target.value as typeof formData.status })}
+                                        required
+                                    >
+                                        <option value="CREATED">Creada</option>
+                                        <option value="IN_PROGRESS">En Progreso</option>
+                                        <option value="PENDING">Pendiente</option>
+                                        <option value="DENIED">Denegada</option>
+                                        <option value="BOUGHT">Comprada</option>
+                                        <option value="VERIFIED">Verificada</option>
+                                    </select>
                                 </div>
                             </div>
 
@@ -462,41 +459,13 @@ export function RegisterPropertyModal({ isOpen, onClose }: RegisterPropertyModal
                     )}
 
                     {activeTab === 'multimedia' && (
-                        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                            <div className="space-y-4">
-                                <h4 className="text-sm font-bold flex items-center gap-2">
-                                    <ImageIcon className="w-4 h-4 text-primary" />
-                                    Imágenes de la Propiedad
-                                </h4>
-                                <DragDropUpload
-                                    title="Arrastra imágenes aquí"
-                                    onFilesDrop={handleImageDrop}
-                                    fileTypeDescription="(.jpg, .png)"
-                                />
-                                {formData.files.images.length > 0 && (
-                                    <div className="grid grid-cols-4 gap-4 mt-4">
-                                        {formData.files.images.map((file, i) => (
-                                            <div key={i} className="relative aspect-video bg-secondary/30 rounded-lg overflow-hidden border border-border group">
-                                                <img
-                                                    src={URL.createObjectURL(file)}
-                                                    alt="Preview"
-                                                    className="w-full h-full object-cover"
-                                                />
-                                                <button
-                                                    type="button"
-                                                    onClick={() => removeFile('images', i)}
-                                                    className="absolute top-1 right-1 bg-black/50 p-1 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500"
-                                                >
-                                                    <X className="w-3 h-3" />
-                                                </button>
-                                                <span className="absolute bottom-1 left-2 text-[10px] text-white drop-shadow-md truncate w-[90%]">
-                                                    {file.name}
-                                                </span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
+                        <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                            <PropertyMultimediaSection
+                                propertyId={createdPropertyId}
+                                onComplete={() => {
+                                    toast.success("Multimedia gestionado exitosamente");
+                                }}
+                            />
                         </div>
                     )}
 
@@ -517,22 +486,31 @@ export function RegisterPropertyModal({ isOpen, onClose }: RegisterPropertyModal
                         onClick={onClose}
                         className="px-8 py-2.5 rounded-xl border border-border hover:bg-secondary transition-colors text-sm font-bold"
                     >
-                        Cancelar
+                        {createdPropertyId ? 'Cerrar' : 'Cancelar'}
                     </button>
-                    <button
-                        onClick={handleSubmit}
-                        disabled={isSubmitting || !formData.user_id}
-                        className="px-8 py-2.5 rounded-xl bg-indigo-500 text-white hover:bg-indigo-600 transition-all disabled:opacity-50 flex items-center gap-2 text-sm font-bold shadow-lg shadow-indigo-500/20"
-                    >
-                        {isSubmitting ? (
-                            <>
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                                Registrando...
-                            </>
-                        ) : (
-                            'Registrar Propiedad'
-                        )}
-                    </button>
+                    {!createdPropertyId ? (
+                        <button
+                            onClick={handleSubmit}
+                            disabled={isSubmitting || !formData.user_id}
+                            className="px-8 py-2.5 rounded-xl bg-indigo-500 text-white hover:bg-indigo-600 transition-all disabled:opacity-50 flex items-center gap-2 text-sm font-bold shadow-lg shadow-indigo-500/20"
+                        >
+                            {isSubmitting ? (
+                                <>
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                    Registrando...
+                                </>
+                            ) : (
+                                'Registrar Propiedad'
+                            )}
+                        </button>
+                    ) : (
+                        <button
+                            onClick={onClose}
+                            className="px-8 py-2.5 rounded-xl bg-indigo-500 text-white hover:bg-indigo-600 transition-all flex items-center gap-2 text-sm font-bold shadow-lg shadow-indigo-500/20"
+                        >
+                            Finalizar
+                        </button>
+                    )}
                 </div>
             </div>
         </div>

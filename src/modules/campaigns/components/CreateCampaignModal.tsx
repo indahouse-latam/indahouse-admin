@@ -11,6 +11,7 @@ import { executeAndWaitForTransaction } from '@/utils/blockchain.utils';
 import { usePropertyTokens } from '@/modules/properties/hooks/usePropertyTokens';
 import { useMarkets } from '@/modules/markets/hooks/useMarkets';
 import { toast } from 'sonner';
+import { fetchApi } from '@/utils/api';
 
 interface FeeTier {
     tier_order: number;
@@ -258,6 +259,16 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
                 });
             });
 
+            // Step 5: Update property with campaign_contract_hash
+            console.log('📝 Updating property with campaign contract hash...');
+            await fetchApi(`/properties/${propertyId}`, {
+                method: 'PUT',
+                body: JSON.stringify({
+                    campaign_contract_hash: campaignAddress
+                })
+            });
+            console.log('✅ Property updated with campaign contract hash');
+
             // Success!
             toast.success('Campaign created successfully!', {
                 description: `Campaign address: ${campaignAddress}`,
@@ -297,7 +308,7 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
         if (loadingStep === 'creating') return 'Creating campaign...';
         if (loadingStep === 'confirming') return 'Confirming transaction...';
         if (loadingStep === 'saving') return 'Saving to database...';
-        return 'Processing...';
+        return 'Finalizing...';
     };
 
     return (
