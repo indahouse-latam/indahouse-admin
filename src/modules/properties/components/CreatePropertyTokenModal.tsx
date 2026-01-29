@@ -6,7 +6,7 @@ import { useMarkets } from '@/modules/markets/hooks/useMarkets';
 import { useCountries } from '../hooks/useCountries';
 import { usePropertyTokens } from '../hooks/usePropertyTokens';
 import { decodeEventLog } from 'viem';
-import { TokenFactoryAbi } from '@/config/abis';
+import { TokenFactoryAbi, ManagerFactoryAbi, PropertyRegistryAbi } from '@/config/abis';
 import { CONTRACTS, DEFAULT_CHAIN_ID } from '@/config/contracts';
 import { toast } from 'sonner';
 import { executeAndWaitForTransaction } from '@/utils/blockchain.utils';
@@ -27,11 +27,12 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
         country_id: '',
         name: '',
         symbol: '',
-        network: 'polygonAmoy' as 'baseSepolia' | 'polygonAmoy',
+        price_per_token: '50000', // Default $0.05 (6 decimals)
+        sale_start_date: new Date().toISOString().split('T')[0],
     });
 
     const [isLoading, setIsLoading] = useState(false);
-    const [loadingStep, setLoadingStep] = useState<'creating' | 'confirming' | 'saving' | null>(null);
+    const [loadingStep, setLoadingStep] = useState<'creating' | 'confirming' | 'registering_manager' | 'registering_property' | 'saving' | null>(null);
 
     if (!isOpen) return null;
 
@@ -50,7 +51,7 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
             setLoadingStep('creating');
             console.log('📝 Creating token on blockchain...');
 
-            const networkConfig = CONTRACTS[formData.network];
+            const networkConfig = CONTRACTS["polygonAmoy"];
             const chainId = DEFAULT_CHAIN_ID;
 
             const { hash, receipt } = await executeAndWaitForTransaction({
@@ -97,7 +98,59 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
 
             console.log('🎯 Token created at address:', tokenAddress);
 
-            // Step 3: Save to database
+            // Step 2: Register token in Manager
+            setLoadingStep('registering_manager');
+            console.log('📝 Registering token in Manager...');
+
+            const { hash: managerHash } = await executeAndWaitForTransaction({
+                contractAddress: networkConfig?.manager as `0x${string}`,
+                abi: ManagerFactoryAbi,
+                functionName: 'registerIndividualToken',
+                args: [
+                    tokenAddress as `0x${string}`,
+                    networkConfig.distributorProxy as `0x${string}`,
+                    formData.symbol,
+                ],
+                chainId,
+            });
+
+            console.log('✅ Token registered in Manager:', managerHash);
+
+            // Step 3: Register property in PropertyRegistry
+            setLoadingStep('registering_property');
+            console.log('📝 Registering property in registry...');
+
+            // Get country code from selected country
+            const selectedCountry = countries?.find(c => c.id === formData.country_id);
+            if (!selectedCountry) {
+                throw new Error('Country not found');
+            }
+
+            // Convert "CO" -> 0x434f000000...00 (bytes32)
+            const countryCodeBytes32 = `0x${selectedCountry.code.toUpperCase()
+                .split('')
+                .map(c => c.charCodeAt(0).toString(16))
+                .join('')
+                .padEnd(64, '0')}` as `0x${string}`;
+
+            const saleStartTimestamp = Math.floor(new Date(formData.sale_start_date).getTime() / 1000);
+
+            const { hash: registryHash } = await executeAndWaitForTransaction({
+                contractAddress: networkConfig.PropertyRegistry as `0x${string}`,
+                abi: PropertyRegistryAbi,
+                functionName: 'registerProperty',
+                args: [
+                    countryCodeBytes32,
+                    tokenAddress as `0x${string}`,
+                    BigInt(formData.price_per_token),
+                    BigInt(saleStartTimestamp),
+                ],
+                chainId,
+            });
+
+            console.log('✅ Property registered in registry:', registryHash);
+
+            // Step 4: Save to database
             setLoadingStep('saving');
             await new Promise<void>((resolve, reject) => {
                 createPropertyToken(
@@ -109,6 +162,8 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
                         name: formData.name,
                         status: 'active',
                         property_uuid: formData.property_id,
+                        // price_per_token: formData.price_per_token,
+                        // sale_start_date: formData.sale_start_date,
                     },
                     {
                         onSuccess: () => {
@@ -133,7 +188,8 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
                 country_id: '',
                 name: '',
                 symbol: '',
-                network: 'polygonAmoy',
+                price_per_token: '50000',
+                sale_start_date: new Date().toISOString().split('T')[0],
             });
 
             onClose();
@@ -149,8 +205,10 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
     };
 
     const getLoadingMessage = () => {
-        if (loadingStep === 'creating') return 'Creating token...';
+        if (loadingStep === 'creating') return 'Creating token on blockchain...';
         if (loadingStep === 'confirming') return 'Confirming transaction...';
+        if (loadingStep === 'registering_manager') return 'Registering in Manager...';
+        if (loadingStep === 'registering_property') return 'Registering property...';
         if (loadingStep === 'saving') return 'Saving to database...';
         return '';
     };
@@ -244,6 +302,40 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
                             className="w-full bg-secondary border border-border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
                             required
                         />
+                    </div>
+
+                    {/* Pricing Section */}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">Price Per Token (USDC) *</label>
+                            <input
+                                type="number"
+                                step="0.000001"
+                                value={Number(formData.price_per_token) / 1000000}
+                                onChange={(e) => setFormData({
+                                    ...formData,
+                                    price_per_token: String(Math.floor(Number(e.target.value) * 1000000))
+                                })}
+                                disabled={isLoading}
+                                placeholder="0.05"
+                                className="w-full bg-secondary border border-border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
+                                required
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                6 decimals: ${(Number(formData.price_per_token) / 1000000).toFixed(6)}
+                            </p>
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">Sale Start Date *</label>
+                            <input
+                                type="date"
+                                value={formData.sale_start_date}
+                                onChange={(e) => setFormData({ ...formData, sale_start_date: e.target.value })}
+                                disabled={isLoading}
+                                className="w-full bg-secondary border border-border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
+                                required
+                            />
+                        </div>
                     </div>
 
                     {/* Footer */}

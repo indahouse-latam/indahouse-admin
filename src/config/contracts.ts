@@ -27,13 +27,15 @@ export const CONTRACTS = {
         indaAdmin: "0x8BF99a1B2725bfb4D018e145967A7300a088A7a7",
         indaLock: "0x56e8F6A9C851c7E86469d0a44A47b0f683d0d9fa",
         capitalGainsVault: "0x5fcf26c62f6c7964cb08240e9cc4fb21ea38c183",
-        rentVault: "0x1a68Df55B5DdE8541146651AE17F757F6CE83462",
+        rentVault: "0x1a68Df55B5DdE85451146651AE17F757F6CE83462",
         sIndh: "0xd2e15302d122a5831beb044ac0894c9789c50cc6",
-        propertyCampaignFactory: "0x955422E26086F456C9Cb21038dC31C9583bE1d7A",
-        commitFactory: "0xc049A4a89f3614a98E4F1295bdC5c39A1566e6d9",
-        propertyCommitFactory: "0xc049A4a89f3614a98E4F1295bdC5c39A1566e6d9",
-        tokenFactory: "0x9B7b22Cf5Bf1BbbB5D958534339c1c72D95eC9D7",
-        distributorProxy: "0xe7A2cC2f4da50054D80Db0E10e34652B9fb2Fb3C",
+        commitFactory: "0xF0fc3C0750BC753Be00b541B89d830c5A705115F",
+        tokenFactory: "0x4c7D5f5EEA569dD4294f1A6bc4383528F3f362A4",
+        distributorProxy: "0x1cf0c2BFfe2d20bb599eBa0C308D5AD1C6e1474B", // indaDistributorProxy
+        manager: "0xcF5a5AbA4F6ec867ECB0BDC227A713a46E71019f",
+        PropertyRegistry : "0xb32e95D22613D4a4B46a3BbEd47b2aE87D3B7317",
+        IndaAdminRouter : "0x259b85d918603E9272f02feb4c29E849d0EE4C21",
+        CommitCampaign: "0x30d8aBFaB17DCb0A8265c701bb9CfbaB00B34a38",
     }
 } as const;
 

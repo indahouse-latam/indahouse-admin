@@ -5,7 +5,7 @@ import { X, DollarSign, Hash, Plus, Trash2, ShieldCheck, Loader2 } from 'lucide-
 import { useCampaigns } from '../hooks/useCampaigns';
 import { useContracts } from '@/hooks/useContracts';
 import { encodeFunctionData, parseUnits, decodeEventLog, Abi } from 'viem';
-import { CommitCampaignFactoryAbi } from '@/config/abis';
+import { CommitCampaignFactoryAbi, ManagerFactoryAbi, IndaRootAbi } from '@/config/abis';
 import { CONTRACTS, DEFAULT_CHAIN_ID } from '@/config/contracts';
 import { executeAndWaitForTransaction } from '@/utils/blockchain.utils';
 import { usePropertyTokens } from '@/modules/properties/hooks/usePropertyTokens';
@@ -25,7 +25,6 @@ interface CreateCampaignModalProps {
 }
 
 export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProps) {
-    const { contracts } = useContracts();
     const { data: propertyTokens, isLoading: isLoadingTokens } = usePropertyTokens();
     const { data: marketsData } = useMarkets();
     const { createCampaign } = useCampaigns();
@@ -33,7 +32,7 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
     const properties = marketsData?.properties || [];
 
     const [isLoading, setIsLoading] = useState(false);
-    const [loadingStep, setLoadingStep] = useState<'creating' | 'confirming' | 'saving' | null>(null);
+    const [loadingStep, setLoadingStep] = useState<'creating' | 'confirming' | 'registering' | 'whitelisting' | 'saving' | null>(null);
     const [propertyTokensWithNames, setPropertyTokensWithNames] = useState<Array<{
         token: any;
         propertyName: string;
@@ -222,7 +221,38 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
 
             console.log('🎯 Campaign created at address:', campaignAddress);
 
-            // Step 4: Save to database
+            // Step 4: Register campaign in Manager
+            setLoadingStep('registering');
+            console.log('📝 Registering campaign in Manager...');
+
+            const { hash: registerHash } = await executeAndWaitForTransaction({
+                contractAddress: CONTRACTS.polygonAmoy.manager as `0x${string}`,
+                abi: ManagerFactoryAbi,
+                functionName: 'registerCampaign',
+                args: [campaignAddress as `0x${string}`],
+                chainId,
+            });
+
+            console.log('✅ Campaign registered in Manager:', registerHash);
+
+            // Step 5: Whitelist campaign in IndaRoot
+            setLoadingStep('whitelisting');
+            console.log('📝 Whitelisting campaign in IndaRoot...');
+
+            const { hash: whitelistHash } = await executeAndWaitForTransaction({
+                contractAddress: formData.indaRoot as `0x${string}`,
+                abi: IndaRootAbi,
+                functionName: '_setToWhitelist',
+                args: [
+                    [campaignAddress as `0x${string}`],
+                    [true],
+                ],
+                chainId,
+            });
+
+            console.log('✅ Campaign whitelisted in IndaRoot:', whitelistHash);
+
+            // Step 6: Save to database
             setLoadingStep('saving');
 
             // Get the property_id from the selected token
@@ -259,7 +289,7 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
                 });
             });
 
-            // Step 5: Update property with campaign_contract_hash
+            // Step 7: Update property with campaign_contract_hash
             console.log('📝 Updating property with campaign contract hash...');
             await fetchApi(`/properties/${propertyId}`, {
                 method: 'PUT',
@@ -307,6 +337,8 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
     const getLoadingMessage = () => {
         if (loadingStep === 'creating') return 'Creating campaign...';
         if (loadingStep === 'confirming') return 'Confirming transaction...';
+        if (loadingStep === 'registering') return 'Registering in Manager...';
+        if (loadingStep === 'whitelisting') return 'Whitelisting campaign...';
         if (loadingStep === 'saving') return 'Saving to database...';
         return 'Finalizing...';
     };
