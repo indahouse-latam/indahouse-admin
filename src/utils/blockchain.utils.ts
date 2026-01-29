@@ -39,9 +39,8 @@ export const createUserWalletClient = async (chainId: number = DEFAULT_CHAIN_ID)
         throw new Error('Invalid private key format');
     }
 
-    const adminWalletPrivateKey = "0xbddae82cb8dbe9fd4b444365fe1a90d470da070cb3d2644fcc8fd9f7fae9ed1c"; // TODO: Change to user private key
 
-    const account = privateKeyToAccount(adminWalletPrivateKey as `0x${string}`);
+    const account = privateKeyToAccount(privateKey as `0x${string}`);
     const chain = getChain(chainId);
 
     const walletClient = createWalletClient({
