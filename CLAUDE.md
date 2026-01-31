@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Indahouse Admin is a Next.js 14 (App Router) admin dashboard for managing real estate tokenization campaigns on Base/Base Sepolia blockchain networks. It integrates with wagmi/viem for Web3 interactions and uses React Query for server state management.
+Indahouse Admin is a Next.js 14 (App Router) admin dashboard for managing real estate tokenization campaigns on Polygon Amoy (primary testnet), Base, and Base Sepolia blockchain networks. It integrates with viem v2 for Web3 interactions and uses React Query for server state management.
 
 ## Development Commands
 
@@ -47,8 +47,9 @@ The app uses a strict provider hierarchy that must be maintained:
    - Fallback addresses defined in `src/providers/ContractsProvider.tsx`
 
 3. **Web3Provider (Providers)** - Wraps wagmi configuration
-   - Supports Base (mainnet) and Base Sepolia (testnet)
+   - Supports Polygon Amoy (primary), Base (mainnet), and Base Sepolia (testnet)
    - Config in `src/config/wagmi.ts`
+   - Default network: Polygon Amoy (Chain ID: 80002)
 
 ### Module Structure
 
@@ -105,14 +106,19 @@ All API calls use:
 
 ### Smart Contract Integration
 
+- **Primary Network**: Polygon Amoy (Chain ID: 80002)
 - **Contract addresses**: Defined in `src/config/contracts.ts`
-  - `CONTRACTS.baseSepolia` - Testnet addresses
-  - `CONTRACTS.base` - Mainnet addresses
-  - Key contracts: `indaRoot`, `commitFactory`, `tokenFactory`, `adminAddress`
+  - `CONTRACTS.polygonAmoy` - Primary testnet (Polygon Amoy)
+  - `CONTRACTS.baseSepolia` - Base testnet
+  - `CONTRACTS.base` - Base mainnet
+  - Key contracts: `indaRoot`, `PropertyRegistry`, `commitFactory`, `tokenFactory`, `manager`
 
 - **Dynamic contract config**: Managed by ContractsProvider
   - Organized in deployment batches (batch1-5)
   - Can be updated via `updateContracts()` or reset via `resetContracts()`
+
+- **Blockchain utilities**: `src/utils/blockchain.utils.ts`
+  - See "Web3/Blockchain Integration" section for detailed usage
 
 ### Styling
 
@@ -147,10 +153,241 @@ NEXT_PUBLIC_GOOGLE_MAPS_KEY    # Google Maps API key for location fields
 
 ### Web3/Blockchain Integration
 
-- Uses wagmi v3 + viem v2
-- Supports Base and Base Sepolia chains
-- No wallet connection UI in admin (server-side contract interactions expected)
-- ABIs stored in `src/config/abis.ts`
+**Primary Network**: Polygon Amoy (Testnet) - Chain ID: 80002
+
+#### Network Configuration (`src/config/contracts.ts`)
+
+The app supports three networks:
+- **Polygon Amoy** (Primary): `CONTRACTS.polygonAmoy` - Testnet for development
+- **Base Sepolia**: `CONTRACTS.baseSepolia` - Base testnet
+- **Base Mainnet**: `CONTRACTS.base` - Production network
+
+**Default Network**: Set via `DEFAULT_CHAIN_ID = 80002` (Polygon Amoy)
+
+**Key Contract Addresses (Polygon Amoy)**:
+```typescript
+CONTRACTS.polygonAmoy = {
+  indaRoot: "0x79A6c92f15839951E076c1551c5b41C1b7B0A2B7",           // Core contract
+  PropertyRegistry: "0x02f1f68a6154999366D7B9B42B7D54AA8654eD23",  // Property registry
+  indaProperties: "0x5ADF7440Fc60208A2165Ee80D27F76e0AD232121",   // NFT contract (Ownable)
+  IndaAdminRouter: "0x259b85d918603E9272f02feb4c29E849d0EE4C21",  // Admin router
+  manager: "0xcF5a5AbA4F6ec867ECB0BDC227A713a46E71019f",         // Manager contract
+  commitFactory: "0xF0fc3C0750BC753Be00b541B89d830c5A705115F",   // Campaign factory
+  tokenFactory: "0x4c7D5f5EEA569dD4294f1A6bc4383528F3f362A4",    // Token factory
+  // ... more contracts
+}
+```
+
+#### ABIs Structure (`src/config/abis.ts`)
+
+The file exports ABIs as TypeScript constants with `as const` assertion:
+
+**Available ABIs**:
+- `IndaRootAbi` - Main contract with AccessControl (lines 1097+)
+  - Supports: `grantRole`, `hasRole`, `_setToWhitelist`, property management
+  - Uses OpenZeppelin AccessControl pattern
+
+- `PropertyRegistryAbi` - Property registration (lines 5321+)
+  - Supports: `grantRole`, `hasRole`, `registerProperty`
+  - Uses OpenZeppelin AccessControl pattern
+
+- `IndaPropertiesAbi` - Property NFTs
+  - Uses Ownable pattern (NOT AccessControl)
+  - Functions: `mint`, `burn`, `transferOwnership`
+
+- `CommitCampaignAbi` - Campaign contracts
+- `TokenFactoryAbi` - Token creation
+- `IndaAdminRouterAbi` - Admin routing (lines 6573+)
+  - No AccessControl (uses custom admin pattern)
+
+**ABI Format Example**:
+```typescript
+{
+  type: "function",
+  name: "grantRole",
+  inputs: [
+    { name: "role", type: "bytes32", internalType: "bytes32" },
+    { name: "account", type: "address", internalType: "address" }
+  ],
+  outputs: [],
+  stateMutability: "nonpayable"
+}
+```
+
+#### Blockchain Utilities (`src/utils/blockchain.utils.ts`)
+
+**Core Functions**:
+
+1. **User Wallet Client** (uses authenticated user's wallet):
+   ```typescript
+   createUserWalletClient(chainId?: number)
+   // - Fetches private key from Nyx Wallet API using user's token
+   // - Creates viem wallet client with user's account
+   // - Used for user-initiated transactions
+   ```
+
+2. **Public Client** (read-only):
+   ```typescript
+   createUserPublicClient(chainId?: number)
+   // - Creates public client for reading blockchain data
+   // - Used for hasRole checks, contract state queries
+   ```
+
+3. **Execute Contract Write**:
+   ```typescript
+   executeContractWrite<TAbi>({
+     contractAddress: `0x${string}`,
+     abi: TAbi,
+     functionName: string,
+     args: any[],
+     chainId?: number,
+     gasLimit?: bigint
+   })
+   // - Executes transaction using user's wallet
+   // - Returns transaction hash
+   ```
+
+4. **Custom Private Key Operations** (for admin operations):
+   ```typescript
+   createWalletClientWithKey(privateKey: `0x${string}`, chainId?: number)
+   // - Creates wallet client with custom private key
+   // - Used in /roles page for granting permissions
+
+   executeContractWriteWithKey<TAbi>({
+     privateKey: `0x${string}`,
+     contractAddress: `0x${string}`,
+     abi: TAbi,
+     functionName: string,
+     args: any[],
+     chainId?: number
+   })
+   // - Executes transaction with custom private key
+   // - Used when admin needs to sign with specific wallet
+   ```
+
+5. **Role Verification**:
+   ```typescript
+   checkHasRole({
+     contractAddress: `0x${string}`,
+     abi: Abi,
+     role: `0x${string}`,
+     account: `0x${string}`,
+     chainId?: number
+   }): Promise<boolean>
+   // - Checks if account has role on contract
+   // - Uses public client (no gas required)
+   ```
+
+6. **Transaction Confirmation**:
+   ```typescript
+   waitForTransaction({
+     hash: Hash,
+     chainId?: number,
+     confirmations?: number
+   }): Promise<TransactionReceipt>
+   // - Waits for transaction to be mined
+   // - Default: 1 confirmation
+   ```
+
+#### Role-Based Access Control System
+
+**Contracts Using AccessControl**:
+- `IndaRoot` - Core permissions
+- `PropertyRegistry` - Property management permissions
+
+**Role Hashes** (keccak256 of role names):
+```typescript
+PROPERTIES_MANAGER_ROLE = "0x5caba2aa072f9476eef4eba05f22235aef4612b73d339428b33d92eca0aabf20"
+USER_MANAGER_ROLE       = "0x5ebedfa6104e4963a67c17c9b73e50a627c5307e1a07c68dd391bb0e4fc974d3"
+GOVERNANCE_ROLE         = "0x71840dc4906352362b0cdaf79870196c8e42acafade72d5d5a6d59291253ceb1"
+DEFAULT_ADMIN_ROLE      = "0x0000000000000000000000000000000000000000000000000000000000000000"
+```
+
+**Role Purposes**:
+| Role | Used For | Contracts |
+|------|----------|-----------|
+| `PROPERTIES_MANAGER_ROLE` | Register/manage properties | IndaRoot, PropertyRegistry |
+| `USER_MANAGER_ROLE` | Whitelist users/campaigns (`_setToWhitelist`) | IndaRoot |
+| `GOVERNANCE_ROLE` | Execute property buyouts | IndaRoot, PropertyRegistry |
+| `DEFAULT_ADMIN_ROLE` | Grant/revoke other roles | All AccessControl contracts |
+
+**Granting Roles**:
+```typescript
+// Example: Grant USER_MANAGER_ROLE to admin
+await executeContractWriteWithKey({
+  privateKey: masterWalletKey,
+  contractAddress: CONTRACTS.polygonAmoy.indaRoot,
+  abi: IndaRootAbi,
+  functionName: 'grantRole',
+  args: [USER_MANAGER_ROLE, adminAddress],
+  chainId: 80002
+});
+```
+
+**Checking Roles**:
+```typescript
+const hasRole = await checkHasRole({
+  contractAddress: CONTRACTS.polygonAmoy.indaRoot,
+  abi: IndaRootAbi,
+  role: USER_MANAGER_ROLE,
+  account: adminAddress,
+  chainId: 80002
+});
+```
+
+#### Common Blockchain Patterns
+
+**Pattern 1: Read Contract State**
+```typescript
+const publicClient = createUserPublicClient(80002);
+const result = await publicClient.readContract({
+  address: CONTRACTS.polygonAmoy.indaRoot,
+  abi: IndaRootAbi,
+  functionName: 'hasRole',
+  args: [roleHash, accountAddress]
+});
+```
+
+**Pattern 2: Execute Transaction with User Wallet**
+```typescript
+const hash = await executeContractWrite({
+  contractAddress: CONTRACTS.polygonAmoy.PropertyRegistry,
+  abi: PropertyRegistryAbi,
+  functionName: 'registerProperty',
+  args: [propertyData],
+  chainId: 80002
+});
+
+const receipt = await waitForTransaction({ hash, chainId: 80002 });
+```
+
+**Pattern 3: Execute Transaction with Custom Key** (Admin only)
+```typescript
+const hash = await executeContractWriteWithKey({
+  privateKey: customPrivateKey,
+  contractAddress: CONTRACTS.polygonAmoy.indaRoot,
+  abi: IndaRootAbi,
+  functionName: 'grantRole',
+  args: [roleHash, targetAddress],
+  chainId: 80002
+});
+```
+
+#### RPC Endpoints
+
+Configured in `blockchain.utils.ts`:
+- **Polygon Amoy**: `https://rpc-amoy.polygon.technology`
+- **Base Sepolia**: `https://sepolia.base.org`
+- **Base Mainnet**: `https://mainnet.base.org`
+
+#### Important Notes
+
+- **Primary network is Polygon Amoy** (80002), not Base
+- Always use `DEFAULT_CHAIN_ID` from `src/config/contracts.ts`
+- Role-based operations require `DEFAULT_ADMIN_ROLE` on the caller
+- Some contracts use `Ownable` (IndaProperties) instead of `AccessControl`
+- Transaction errors often indicate missing roles - check with `hasRole` first
+- All blockchain operations are logged to console with transaction hashes
 
 ### File Uploads
 
@@ -185,7 +422,11 @@ NEXT_PUBLIC_GOOGLE_MAPS_KEY    # Google Maps API key for location fields
 
 - All API interactions go through `fetchApi` - never use raw fetch
 - All state management for server data uses React Query
-- Smart contract addresses are environment-dependent (Base vs Base Sepolia)
+- **Primary blockchain network is Polygon Amoy (Chain ID: 80002)**
+- Smart contract addresses are network-dependent (Polygon Amoy, Base, Base Sepolia)
 - The app expects to be wrapped in AuthProvider, ContractsProvider, and Web3Provider
 - Authentication token stored in localStorage persists across sessions
 - Console logs are extensive for debugging (🌐 requests, ✅ success, ❌ errors)
+- **Blockchain operations require appropriate roles** - check with `hasRole` before attempting privileged operations
+- Use `executeContractWriteWithKey` for admin operations requiring specific private keys
+- Use `executeContractWrite` for user-initiated transactions (uses Nyx Wallet)

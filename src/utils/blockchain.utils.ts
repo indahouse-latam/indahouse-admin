@@ -136,3 +136,68 @@ export const executeAndWaitForTransaction = async <TAbi extends Abi>(params: {
 
     return { hash, receipt };
 };
+
+/**
+ * Creates a wallet client using a custom private key (for admin operations)
+ */
+export const createWalletClientWithKey = (privateKey: `0x${string}`, chainId: number = DEFAULT_CHAIN_ID) => {
+    const account = privateKeyToAccount(privateKey);
+    const chain = getChain(chainId);
+
+    return createWalletClient({
+        account,
+        chain,
+        transport: http(getRpcUrl(chainId)),
+    });
+};
+
+/**
+ * Executes a contract write transaction with a custom private key
+ */
+export const executeContractWriteWithKey = async <TAbi extends Abi>(params: {
+    privateKey: `0x${string}`;
+    contractAddress: `0x${string}`;
+    abi: TAbi;
+    functionName: string;
+    args: any[];
+    chainId?: number;
+    gasLimit?: bigint;
+}) => {
+    const { privateKey, contractAddress, abi, functionName, args, chainId = DEFAULT_CHAIN_ID, gasLimit } = params;
+
+    const walletClient = createWalletClientWithKey(privateKey, chainId);
+
+    const hash = await walletClient.writeContract({
+        address: contractAddress,
+        abi,
+        functionName,
+        args,
+        gas: gasLimit,
+    });
+
+    return hash;
+};
+
+/**
+ * Checks if an address has a specific role on a contract
+ */
+export const checkHasRole = async (params: {
+    contractAddress: `0x${string}`;
+    abi: Abi;
+    role: `0x${string}`;
+    account: `0x${string}`;
+    chainId?: number;
+}): Promise<boolean> => {
+    const { contractAddress, abi, role, account, chainId = DEFAULT_CHAIN_ID } = params;
+
+    const publicClient = createUserPublicClient(chainId);
+
+    const hasRole = await publicClient.readContract({
+        address: contractAddress,
+        abi,
+        functionName: 'hasRole',
+        args: [role, account],
+    });
+
+    return hasRole as boolean;
+};

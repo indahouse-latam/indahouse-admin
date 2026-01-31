@@ -5,8 +5,8 @@ import { X, Coins, Loader2 } from 'lucide-react';
 import { useMarkets } from '@/modules/markets/hooks/useMarkets';
 import { useCountries } from '../hooks/useCountries';
 import { usePropertyTokens } from '../hooks/usePropertyTokens';
-import { decodeEventLog } from 'viem';
-import { TokenFactoryAbi, ManagerFactoryAbi, PropertyRegistryAbi } from '@/config/abis';
+import { Abi, decodeEventLog } from 'viem';
+import { TokenFactoryAbi, ManagerAbi, PropertyRegistryAbi } from '@/config/abis';
 import { CONTRACTS, DEFAULT_CHAIN_ID } from '@/config/contracts';
 import { toast } from 'sonner';
 import { executeAndWaitForTransaction } from '@/utils/blockchain.utils';
@@ -104,7 +104,7 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
 
             const { hash: managerHash } = await executeAndWaitForTransaction({
                 contractAddress: networkConfig?.manager as `0x${string}`,
-                abi: ManagerFactoryAbi,
+                abi: ManagerAbi as Abi,
                 functionName: 'registerIndividualToken',
                 args: [
                     tokenAddress as `0x${string}`,
