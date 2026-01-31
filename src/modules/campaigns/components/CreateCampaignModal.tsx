@@ -3,9 +3,8 @@
 import { useState, useEffect } from 'react';
 import { X, DollarSign, Hash, Plus, Trash2, ShieldCheck, Loader2 } from 'lucide-react';
 import { useCampaigns } from '../hooks/useCampaigns';
-import { useContracts } from '@/hooks/useContracts';
 import { encodeFunctionData, parseUnits, decodeEventLog, Abi } from 'viem';
-import { CommitCampaignFactoryAbi, ManagerFactoryAbi, IndaRootAbi } from '@/config/abis';
+import { CommitFactoryAbi, ManagerAbi, IndaRootAbi } from '@/config/abis';
 import { CONTRACTS, DEFAULT_CHAIN_ID } from '@/config/contracts';
 import { executeAndWaitForTransaction } from '@/utils/blockchain.utils';
 import { usePropertyTokens } from '@/modules/properties/hooks/usePropertyTokens';
@@ -40,6 +39,7 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
 
     const [formData, setFormData] = useState({
         property_token_id: '',
+        property_id: '', // Property UUID
         campaign_type: 1, // Default: SINGLE_PROPERTY
         indaRoot: CONTRACTS.polygonAmoy.indaRoot,
         baseToken: CONTRACTS.polygonAmoy.usdc,
@@ -185,7 +185,7 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
             // Step 2: Execute transaction and wait for confirmation
             const { hash, receipt } = await executeAndWaitForTransaction({
                 contractAddress: CONTRACTS.polygonAmoy.commitFactory as `0x${string}`,
-                abi: CommitCampaignFactoryAbi as Abi,
+                abi: CommitFactoryAbi as Abi,
                 functionName: 'createCampaign',
                 args: [initData],
                 chainId,
@@ -198,7 +198,7 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
             const log = receipt.logs.find((log) => {
                 try {
                     const decoded = decodeEventLog({
-                        abi: CommitCampaignFactoryAbi,
+                        abi: CommitFactoryAbi,
                         data: log.data,
                         topics: log.topics,
                     });
@@ -213,7 +213,7 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
             }
 
             const decoded = decodeEventLog({
-                abi: CommitCampaignFactoryAbi,
+                abi: CommitFactoryAbi,
                 data: log.data,
                 topics: log.topics,
             });
@@ -227,7 +227,7 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
 
             const { hash: registerHash } = await executeAndWaitForTransaction({
                 contractAddress: CONTRACTS.polygonAmoy.manager as `0x${string}`,
-                abi: ManagerFactoryAbi,
+                abi: ManagerAbi,
                 functionName: 'registerCampaign',
                 args: [campaignAddress as `0x${string}`],
                 chainId,
@@ -255,13 +255,14 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
             // Step 6: Save to database
             setLoadingStep('saving');
 
-            // Get the property_id from the selected token
-            const selectedToken = propertyTokens?.find(t => t.id === formData.property_token_id);
-            const propertyId = selectedToken?.propertyUuid || selectedToken?.property_uuid;
+            // Use the property_id that was saved when selecting the token
+            const propertyId = formData.property_id;
 
             if (!propertyId) {
-                throw new Error('Property ID not found for selected token');
+                throw new Error('Property ID not found for selected token. Please select a property token again.');
             }
+
+            console.log('📝 Using property ID:', propertyId);
 
             await new Promise<void>((resolve, reject) => {
                 createCampaign({
@@ -308,6 +309,7 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
             // Reset form
             setFormData({
                 property_token_id: '',
+                property_id: '',
                 campaign_type: 1,
                 indaRoot: CONTRACTS.polygonAmoy.indaRoot,
                 baseToken: CONTRACTS.polygonAmoy.usdc,
@@ -379,13 +381,15 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
                                         const selectedTokenId = e.target.value;
                                         const selectedTokenItem = propertyTokensWithNames.find(item => item.token.id === selectedTokenId);
                                         const tokenAddr = selectedTokenItem?.token.tokenAddress || selectedTokenItem?.token.token_address || '';
+                                        const propUuid = selectedTokenItem?.token.propertyUuid || selectedTokenItem?.token.property_uuid || '';
 
-                                        console.log('📌 Selected:', { selectedTokenId, tokenAddr, item: selectedTokenItem });
+                                        console.log('📌 Selected:', { selectedTokenId, tokenAddr, propUuid, item: selectedTokenItem });
 
                                         setFormData({
                                             ...formData,
                                             property_token_id: selectedTokenId,
-                                            token_address: tokenAddr
+                                            token_address: tokenAddr,
+                                            property_id: propUuid
                                         });
                                     }}
                                     required
