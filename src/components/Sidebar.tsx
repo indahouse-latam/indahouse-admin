@@ -15,7 +15,8 @@ import {
     UserPlus,
     Globe,
     Send,
-    FileText
+    FileText,
+    Shield
 } from 'lucide-react';
 
 const navItems = [
@@ -25,6 +26,7 @@ const navItems = [
     { name: 'Activos & Campañas', icon: <Building2 className="w-5 h-5" />, path: '/assets' },
     { name: 'Mercados', icon: <Globe className="w-5 h-5" />, path: '/markets' },
     { name: 'Autorizaciones', icon: <ShieldCheck className="w-5 h-5" />, path: '/authorizations' },
+    { name: 'Roles', icon: <Shield className="w-5 h-5" />, path: '/roles' },
     { name: 'Enviar Tokens', icon: <Send className="w-5 h-5" />, path: '/send-tokens' },
     { name: 'Historial', icon: <History className="w-5 h-5" />, path: '/history' },
     { name: 'Logs', icon: <FileText className="w-5 h-5" />, path: '/history/logs' },

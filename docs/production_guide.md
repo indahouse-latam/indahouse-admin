@@ -103,15 +103,34 @@ IndahouseRegistry (Central Router Registry)
 - All operations need consistent logging for accounting
 - Simplifies frontend integration (one contract to interact with)
 
-### 2.3 Key Roles (AccessControl)
+### 2.3 Key Roles (OpenZeppelin AccessControl)
+
+All core contracts use OpenZeppelin's `AccessControlDefaultAdminRules` pattern, providing:
+- **2-step admin transfer**: New admin must accept before transfer completes
+- **Time delay**: Configurable delay (3 days production) for admin changes
+- **Role-based access**: Granular permissions with explicit role checks
 
 | Role | Purpose | Who Has It |
 |------|---------|------------|
-| `DEFAULT_ADMIN_ROLE` | Full system control | Multisig Safe |
+| `DEFAULT_ADMIN_ROLE` | Full system control, 2-step transfer | Multisig Safe |
 | `GOVERNANCE_ROLE` | Property buyout execution | PropertyGovernor contracts |
 | `PROPERTIES_MANAGER_ROLE` | Register/retire properties | Admin, IndaRoot, TransactionRouter |
 | `USER_MANAGER_ROLE` | Whitelist management | Admin (backend) |
 | `MINTER_ROLE` | Mint tokens during campaigns | IndaRoot |
+| `OPERATOR_ROLE` | Manager operations | Admin |
+| `PRICE_MANAGER_ROLE` | Update token prices | Price feed services |
+
+#### Contracts Using AccessControlDefaultAdminRules
+
+| Contract | Admin Transfer Delay | Purpose |
+|----------|---------------------|----------|
+| `TransactionRouter` | 3 days (prod) | User operation handling |
+| `IndahouseRegistry` | 3 days (prod) | Contract discovery |
+| `IndaAdminRouter` | 3 days (prod) | Admin operations |
+| `CommitFactory` | 3 days (prod) | Campaign creation |
+| `Manager` | Custom 2-step* | Per-country operations |
+
+*Manager uses `AccessControlUpgradeable` with custom 2-step pattern for clone compatibility.
 
 ---
 
@@ -121,26 +140,57 @@ IndahouseRegistry (Central Router Registry)
 
 **Why Multisig?** A single private key controlling millions in assets is unacceptable. All admin operations route through a **Gnosis Safe (3-of-5 multisig)** post-deployment.
 
+**AccessControl Pattern**: Core contracts now use OpenZeppelin's `AccessControlDefaultAdminRules` with:
+- **2-step admin transfer**: Prevents accidental admin loss
+- **3-day delay** (production): Time to detect compromised keys
+- **Role-based permissions**: Fine-grained access control
+
 **Deployment Flow**:
 1. Deploy using temporary Deployer EOA
-2. Transfer all `DEFAULT_ADMIN_ROLE` to Operations Safe
-3. Revoke Deployer's roles
-4. Secure-delete Deployer private key
+2. All contracts deploy with deployer as initial admin (0 delay for deployment)
+3. Begin admin transfer to Operations Safe
+4. Wait for acceptance (or skip if using immediate transfer)
+5. Safe accepts admin role
+6. Secure-delete Deployer private key
 
 ```bash
-# Deploy all batches
+# Deploy all batches (deployer starts as admin)
 ./batch_deploy.sh all
 
-# Post-deployment: Transfer admin to Safe
-DEFAULT_ADMIN_ROLE="0x0000000000000000000000000000000000000000000000000000000000000000"
-
+# Post-deployment: Begin admin transfer to Safe (AccessControl pattern)
 # For each critical contract:
+
+# 1. Begin transfer (starts 3-day delay in production)
+cast send $INDA_ADMIN_ROUTER "beginDefaultAdminTransfer(address)" $SAFE_ADDRESS --private-key $DEPLOYER_KEY
+cast send $TRANSACTION_ROUTER "beginDefaultAdminTransfer(address)" $SAFE_ADDRESS --private-key $DEPLOYER_KEY
+cast send $REGISTRY "beginDefaultAdminTransfer(address)" $SAFE_ADDRESS --private-key $DEPLOYER_KEY
+cast send $COMMIT_FACTORY "beginDefaultAdminTransfer(address)" $SAFE_ADDRESS --private-key $DEPLOYER_KEY
+
+# 2. After delay, Safe accepts admin role
+cast send $INDA_ADMIN_ROUTER "acceptDefaultAdminTransfer()" --private-key $SAFE_KEY
+cast send $TRANSACTION_ROUTER "acceptDefaultAdminTransfer()" --private-key $SAFE_KEY
+cast send $REGISTRY "acceptDefaultAdminTransfer()" --private-key $SAFE_KEY
+cast send $COMMIT_FACTORY "acceptDefaultAdminTransfer()" --private-key $SAFE_KEY
+
+# 3. For contracts using vanilla AccessControl (IndaRoot, etc.):
+DEFAULT_ADMIN_ROLE="0x0000000000000000000000000000000000000000000000000000000000000000"
 cast send $INDA_ROOT "grantRole(bytes32,address)" $DEFAULT_ADMIN_ROLE $SAFE_ADDRESS
 cast send $INDA_ROOT "revokeRole(bytes32,address)" $DEFAULT_ADMIN_ROLE $DEPLOYER_ADDRESS
-# Repeat for: Registry, TransactionRouter, ManagerFactory, PropertyRegistry, etc.
 ```
 
-### 3.2 Critical Addresses
+### 3.2 Admin Transfer Functions Reference
+
+| Contract | Begin Transfer | Accept Transfer | Cancel Transfer |
+|----------|---------------|-----------------|------------------|
+| TransactionRouter | `beginDefaultAdminTransfer(address)` | `acceptDefaultAdminTransfer()` | `cancelDefaultAdminTransfer()` |
+| IndahouseRegistry | `beginDefaultAdminTransfer(address)` | `acceptDefaultAdminTransfer()` | `cancelDefaultAdminTransfer()` |
+| IndaAdminRouter | `beginDefaultAdminTransfer(address)` | `acceptDefaultAdminTransfer()` | `cancelDefaultAdminTransfer()` |
+| CommitFactory | `beginDefaultAdminTransfer(address)` | `acceptDefaultAdminTransfer()` | `cancelDefaultAdminTransfer()` |
+| Manager | `beginAdminTransfer(address)` | `acceptAdminTransfer()` | N/A (reverts if pending) |
+
+> **Note**: All contracts maintain an `admin()` getter for backward compatibility with `PoolVault` and legacy code.
+
+### 3.3 Critical Addresses
 
 Store these in environment config and database after deployment:
 
