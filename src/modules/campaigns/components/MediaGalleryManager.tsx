@@ -194,7 +194,9 @@ export function MediaGalleryManager({
     }
 
     if (validFiles.length > 0) {
-      onUpload(validFiles, mediaType);
+      // Detectar automáticamente el tipo de medio del primer archivo
+      const detectedMediaType: MediaType = validFiles[0].type.startsWith('video/') ? 'VIDEO' : 'IMAGE';
+      onUpload(validFiles, detectedMediaType);
     }
   };
 
