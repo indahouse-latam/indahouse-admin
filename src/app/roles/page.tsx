@@ -23,7 +23,7 @@ import {
 } from "@/config/abis";
 import { checkHasRole, executeContractWriteWithKey, waitForTransaction, createUserPublicClient } from "@/utils/blockchain.utils";
 import { CONTRACTS, DEFAULT_CHAIN_ID } from "@/config/contracts";
-import { isAddress } from "viem";
+import { Abi, isAddress } from "viem";
 import { getPrivateKeyFromLocalStorage } from "@/utils/nyx-wallet.ultils";
 
 // Contract addresses from Polygon Amoy
@@ -383,7 +383,7 @@ export default function RolesPage() {
                 const hash = await executeContractWriteWithKey({
                     privateKey: formattedKey as `0x${string}`,
                     contractAddress: address,
-                    abi,
+                    abi: abi as Abi,
                     functionName,
                     args: [newAdminAddress],
                     chainId: DEFAULT_CHAIN_ID
@@ -606,7 +606,6 @@ export default function RolesPage() {
             return;
         }
 
-        setIsGrantingVanilla(true);
         setError(null);
         setSuccessMessage(null);
 
@@ -646,7 +645,6 @@ export default function RolesPage() {
             }
         }
 
-        setIsGrantingVanilla(false);
 
         if (successCount > 0 && errorCount === 0) {
             setSuccessMessage(`Successfully granted ${successCount} role(s)`);
