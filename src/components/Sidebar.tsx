@@ -24,6 +24,7 @@ const navItems = [
     { name: 'Usuarios', icon: <Users className="w-5 h-5" />, path: '/users' },
     { name: 'Onboarding', icon: <UserPlus className="w-5 h-5" />, path: '/onboarding' },
     { name: 'Activos & Campañas', icon: <Building2 className="w-5 h-5" />, path: '/assets' },
+    { name: 'Propiedades', icon: <Building2 className="w-5 h-5" />, path: '/properties' },
     { name: 'Mercados', icon: <Globe className="w-5 h-5" />, path: '/markets' },
     { name: 'Autorizaciones', icon: <ShieldCheck className="w-5 h-5" />, path: '/authorizations' },
     { name: 'Roles', icon: <Shield className="w-5 h-5" />, path: '/roles' },

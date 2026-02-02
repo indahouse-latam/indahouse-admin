@@ -44,17 +44,55 @@ function SortableMediaItem({ media, onDelete, isDeleting }: SortableMediaItemPro
     opacity: isDragging ? 0.5 : 1
   };
 
+  const urlLower = media.fileUrl?.toLowerCase() || '';
+  const isVideo = urlLower.endsWith('.mp4') ||
+                  urlLower.endsWith('mp4') ||
+                  urlLower.includes('.mp4') ||
+                  urlLower.includes('/video/') ||
+                  urlLower.includes('video');
+
+  const handleVideoLoad = (e: React.SyntheticEvent<HTMLVideoElement>) => {
+    const video = e.currentTarget;
+    video.currentTime = 1;
+    console.log('Video loaded:', media.fileUrl);
+  };
+
   return (
     <div
       ref={setNodeRef}
       style={style}
       className="relative aspect-video bg-secondary/30 rounded-lg overflow-hidden border border-border group"
     >
-      <img
-        src={media.fileUrl}
-        alt="Property media"
-        className="w-full h-full object-cover"
-      />
+      {isVideo ? (
+        <video
+          src={media.fileUrl}
+          className="w-full h-full object-cover"
+          preload="metadata"
+          muted
+          playsInline
+          onLoadedMetadata={handleVideoLoad}
+          onMouseEnter={(e) => {
+            const video = e.currentTarget;
+            video.currentTime = 0;
+            video.play();
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.pause();
+            e.currentTarget.currentTime = 1;
+          }}
+          onError={(e) => {
+            console.error('Error loading video:', media.fileUrl);
+          }}
+        >
+          <source src={media.fileUrl} type="video/mp4" />
+        </video>
+      ) : (
+        <img
+          src={media.fileUrl}
+          alt="Property media"
+          className="w-full h-full object-cover"
+        />
+      )}
       <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
         <button
           type="button"
@@ -80,6 +118,11 @@ function SortableMediaItem({ media, onDelete, isDeleting }: SortableMediaItemPro
       <span className="absolute bottom-2 left-2 text-xs text-white bg-black/50 px-2 py-1 rounded">
         {media.displayOrder}
       </span>
+      {isVideo && (
+        <span className="absolute top-2 right-2 text-xs text-white bg-black/70 px-2 py-1 rounded">
+          VIDEO
+        </span>
+      )}
     </div>
   );
 }
@@ -134,15 +177,38 @@ export function MediaGalleryManager({
   };
 
   const handleFilesDrop = (files: File[]) => {
-    onUpload(files, mediaType);
+    const MAX_SIZE = 10 * 1024 * 1024; // 10MB
+    const validFiles: File[] = [];
+    const invalidFiles: string[] = [];
+
+    files.forEach(file => {
+      if (file.type.startsWith('video/') && file.size > MAX_SIZE) {
+        invalidFiles.push(`${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB - máximo 10MB)`);
+      } else {
+        validFiles.push(file);
+      }
+    });
+
+    if (invalidFiles.length > 0) {
+      alert(`Los siguientes archivos exceden el límite de 10MB:\n\n${invalidFiles.join('\n')}`);
+    }
+
+    if (validFiles.length > 0) {
+      onUpload(validFiles, mediaType);
+    }
   };
 
   return (
     <div className="space-y-4">
       <DragDropUpload
-        title={isUploading ? "Subiendo..." : "Arrastra imágenes aquí"}
+        title={isUploading ? "Subiendo..." : "Arrastra imágenes o videos aquí"}
         onFilesDrop={handleFilesDrop}
-        fileTypeDescription="(.jpg, .png)"
+        accept={{
+          'image/*': ['.jpeg', '.jpg', '.png'],
+          'video/mp4': ['.mp4']
+        }}
+        maxSize={10485760}
+        fileTypeDescription="(.jpg, .png, .mp4 - máx 10MB)"
       />
 
       {isUploading && (
