@@ -1,4 +1,4 @@
-import { config } from '@/config/config';
+
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -14,7 +14,6 @@ export async function fetchApi(endpoint: string, options: RequestInit = {}) {
     const headers: Record<string, string> = {
         'Authorization': token ? `Bearer ${token}` : '',
         'UserId': user?.id ? String(user.id) : '1',
-        'Origin': config.appUrl || 'https://localhost:3000',
     };
 
     if (!isFormData) {

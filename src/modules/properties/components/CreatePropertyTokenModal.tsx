@@ -39,6 +39,7 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
+
         if (!formData.property_id || !formData.country_id || !formData.name || !formData.symbol) {
             toast.error('Please fill all required fields');
             return;
@@ -152,6 +153,7 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
 
             // Step 4: Save to database
             setLoadingStep('saving');
+            console.log(formData.property_id);
             await new Promise<void>((resolve, reject) => {
                 createPropertyToken(
                     {
@@ -161,7 +163,7 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
                         symbol: formData.symbol,
                         name: formData.name,
                         status: 'active',
-                        property_uuid: formData.property_id,
+                        property_id: formData.property_id,
                         // price_per_token: formData.price_per_token,
                         // sale_start_date: formData.sale_start_date,
                     },
@@ -243,7 +245,7 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
                         <label className="text-sm font-medium">Propiedad *</label>
                         <select
                             value={formData.property_id}
-                            onChange={(e) => setFormData({ ...formData, property_id: e.target.value })}
+                            onChange={(e) => { console.log(e.target.value); setFormData({ ...formData, property_id: e.target.value }); }}
                             disabled={isLoading}
                             className="w-full bg-secondary border border-border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
                             required

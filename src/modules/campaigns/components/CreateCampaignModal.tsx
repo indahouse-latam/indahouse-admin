@@ -8,7 +8,6 @@ import { CommitFactoryAbi, ManagerAbi, IndaRootAbi } from '@/config/abis';
 import { CONTRACTS, DEFAULT_CHAIN_ID } from '@/config/contracts';
 import { executeAndWaitForTransaction } from '@/utils/blockchain.utils';
 import { usePropertyTokens } from '@/modules/properties/hooks/usePropertyTokens';
-import { useMarkets } from '@/modules/markets/hooks/useMarkets';
 import { toast } from 'sonner';
 import { fetchApi } from '@/utils/api';
 
@@ -25,10 +24,8 @@ interface CreateCampaignModalProps {
 
 export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProps) {
     const { data: propertyTokens, isLoading: isLoadingTokens } = usePropertyTokens();
-    const { data: marketsData } = useMarkets();
     const { createCampaign } = useCampaigns();
 
-    const properties = marketsData?.properties || [];
 
     const [isLoading, setIsLoading] = useState(false);
     const [loadingStep, setLoadingStep] = useState<'creating' | 'confirming' | 'registering' | 'whitelisting' | 'saving' | null>(null);
@@ -48,9 +45,9 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
         min_cap: '100',
         max_cap: '500',
         price_per_token: '1',
-        start_time: new Date().toISOString().split('T')[0],
-        commit_deadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        execute_after: new Date(Date.now() + 31 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        start_time: new Date().toISOString().slice(0, 16),
+        commit_deadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
+        execute_after: new Date(Date.now() + 31 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
         network: 'polygonAmoy' as 'baseSepolia' | 'polygonAmoy',
     });
 
@@ -61,18 +58,16 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
     ]);
 
     useEffect(() => {
-        if (!propertyTokens || !properties.length) return;
+        if (!propertyTokens) return;
 
         console.log('🔍 Property Tokens:', propertyTokens);
-        console.log('🏠 Properties:', properties);
 
         const tokensWithNames = propertyTokens.map((token) => {
-            const propertyId = token.propertyUuid || token.property_uuid;
-            const property = properties.find((p: any) => p.id === propertyId);
-            const propertyName = property?.nameReference || property?.name_reference || 'Unknown Property';
+            const propertyId = token.property.id;
+            const propertyName = token.property.nameReference;
 
             console.log(`✅ Token ${token.id} -> Property ${propertyId} -> Name: ${propertyName}`);
-            console.log(`   Token Address: ${token.tokenAddress || token.token_address}`);
+            console.log(`   Token Address: ${token.tokenAddress}`);
 
             return {
                 token,
@@ -81,7 +76,7 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
         });
 
         setPropertyTokensWithNames(tokensWithNames);
-    }, [propertyTokens, properties]);
+    }, [propertyTokens]);
 
     if (!isOpen) return null;
 
@@ -318,9 +313,9 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
                 min_cap: '100',
                 max_cap: '500',
                 price_per_token: '1',
-                start_time: new Date().toISOString().split('T')[0],
-                commit_deadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-                execute_after: new Date(Date.now() + 31 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                start_time: new Date().toISOString().slice(0, 16),
+                commit_deadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
+                execute_after: new Date(Date.now() + 31 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
                 network: 'polygonAmoy',
             });
             onClose();
@@ -381,7 +376,7 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
                                         const selectedTokenId = e.target.value;
                                         const selectedTokenItem = propertyTokensWithNames.find(item => item.token.id === selectedTokenId);
                                         const tokenAddr = selectedTokenItem?.token.tokenAddress || selectedTokenItem?.token.token_address || '';
-                                        const propUuid = selectedTokenItem?.token.propertyUuid || selectedTokenItem?.token.property_uuid || '';
+                                        const propUuid = selectedTokenItem?.token.property.id || '';
 
                                         console.log('📌 Selected:', { selectedTokenId, tokenAddr, propUuid, item: selectedTokenItem });
 
@@ -481,7 +476,7 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
                             <div className="space-y-2">
                                 <label className="text-[10px] font-bold uppercase text-muted-foreground">Start Time</label>
                                 <input
-                                    type="date"
+                                    type="datetime-local"
                                     required
                                     className="w-full bg-secondary/20 border border-border rounded-lg px-4 py-2 text-sm"
                                     value={formData.start_time}
@@ -491,7 +486,7 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
                             <div className="space-y-2">
                                 <label className="text-[10px] font-bold uppercase text-muted-foreground">Commit Deadline</label>
                                 <input
-                                    type="date"
+                                    type="datetime-local"
                                     required
                                     className="w-full bg-secondary/20 border border-border rounded-lg px-4 py-2 text-sm"
                                     value={formData.commit_deadline}
@@ -501,7 +496,7 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
                             <div className="space-y-2">
                                 <label className="text-[10px] font-bold uppercase text-muted-foreground">Execution After</label>
                                 <input
-                                    type="date"
+                                    type="datetime-local"
                                     required
                                     className="w-full bg-secondary/20 border border-border rounded-lg px-4 py-2 text-sm"
                                     value={formData.execute_after}
