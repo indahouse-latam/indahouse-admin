@@ -122,7 +122,7 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
             console.log('📝 Registering property in registry...');
 
             // Get country code from selected country
-            const selectedCountry = countries?.find(c => c.id === formData.country_id);
+            const selectedCountry = countries?.find(c => c.id === formData?.country_id);
             if (!selectedCountry) {
                 throw new Error('Country not found');
             }
@@ -153,7 +153,7 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
 
             // Step 4: Save to database
             setLoadingStep('saving');
-            console.log(formData.property_id);
+
             await new Promise<void>((resolve, reject) => {
                 createPropertyToken(
                     {
@@ -163,7 +163,7 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
                         symbol: formData.symbol,
                         name: formData.name,
                         status: 'active',
-                        property_id: formData.property_id,
+                        property_id: formData?.property_id,
                         // price_per_token: formData.price_per_token,
                         // sale_start_date: formData.sale_start_date,
                     },
@@ -253,7 +253,7 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
                             <option value="">Seleccionar propiedad</option>
                             {properties.map((property) => (
                                 <option key={property.id} value={property.id}>
-                                    {property.nameReference || property.name_reference || 'Sin nombre'}
+                                    {property?.nameReference || property?.name_reference || 'Sin nombre'}
                                 </option>
                             ))}
                         </select>

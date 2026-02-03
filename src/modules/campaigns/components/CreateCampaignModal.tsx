@@ -63,10 +63,10 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
         console.log('🔍 Property Tokens:', propertyTokens);
 
         const tokensWithNames = propertyTokens.map((token) => {
-            const propertyId = token.property.id;
-            const propertyName = token.property.nameReference;
+            const propertyId = token?.property?.id;
+            const propertyName = token?.property?.nameReference;
 
-            console.log(`✅ Token ${token.id} -> Property ${propertyId} -> Name: ${propertyName}`);
+            console.log(`✅ Token ${token?.id} -> Property ${propertyId} -> Name: ${propertyName}`);
             console.log(`   Token Address: ${token.tokenAddress}`);
 
             return {

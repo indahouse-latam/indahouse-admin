@@ -111,7 +111,7 @@ export function RegisterPropertyModal({ isOpen, onClose }: RegisterPropertyModal
                 body: JSON.stringify(payload)
             });
 
-            const newProperty = response.property || response;
+            const newProperty = response?.property || response;
             console.log('✅ Property created:', newProperty);
 
             setCreatedPropertyId(newProperty.id);
