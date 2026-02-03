@@ -5,9 +5,9 @@ const { ManagerAbi } = require('../src/config/abis/manager.abi.ts');
 const { CONTRACTS, DEFAULT_CHAIN_ID } = require('../src/config/contracts.ts');
 
 // Configuración
-const ADMIN_PRIVATE_KEY = '0xe5c8067535f80762f1b6522f4d48d12a5ee09382541ec29d2690f090e749a1c4'; // Coloca aquí la private key del admin actual
+const ADMIN_PRIVATE_KEY = ''; // Coloca aquí la private key del admin actual
 const ROLE_TO_GRANT = '0x0000000000000000000000000000000000000000000000000000000000000000'; // DEFAULT_ADMIN_ROLE
-const ACCOUNT_TO_GRANT = '0x3c8Cd6b391AE58608405927A4c85155c67EC9844'; // Dirección que recibirá el rol
+const ACCOUNT_TO_GRANT = ''; // Dirección que recibirá el rol
 
 async function grantManagerRole() {
     console.log('\n🔐 Granting Manager Role on Polygon Amoy...\n');

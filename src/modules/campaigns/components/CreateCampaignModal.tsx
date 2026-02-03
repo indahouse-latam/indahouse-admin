@@ -374,9 +374,9 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
                                     value={formData.property_token_id}
                                     onChange={(e) => {
                                         const selectedTokenId = e.target.value;
-                                        const selectedTokenItem = propertyTokensWithNames.find(item => item.token.id === selectedTokenId);
-                                        const tokenAddr = selectedTokenItem?.token.tokenAddress || selectedTokenItem?.token.token_address || '';
-                                        const propUuid = selectedTokenItem?.token.property.id || '';
+                                        const selectedTokenItem = propertyTokensWithNames.find(item => item?.token?.id === selectedTokenId);
+                                        const tokenAddr = selectedTokenItem?.token?.tokenAddress || selectedTokenItem?.token?.token_address || '';
+                                        const propUuid = selectedTokenItem?.token?.property?.id || '';
 
                                         console.log('📌 Selected:', { selectedTokenId, tokenAddr, propUuid, item: selectedTokenItem });
 
