@@ -10,6 +10,7 @@ import { executeAndWaitForTransaction } from '@/utils/blockchain.utils';
 import { usePropertyTokens } from '@/modules/properties/hooks/usePropertyTokens';
 import { toast } from 'sonner';
 import { fetchApi } from '@/utils/api';
+import { LocalStorageUser } from '@/providers/AuthProvider';
 
 interface FeeTier {
     tier_order: number;
@@ -26,7 +27,9 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
     const { data: propertyTokens, isLoading: isLoadingTokens } = usePropertyTokens();
     const { createCampaign } = useCampaigns();
 
-
+    const localstorageUser = localStorage.getItem('admin_user');
+    const user: LocalStorageUser = JSON.parse(localstorageUser || '{}');
+    
     const [isLoading, setIsLoading] = useState(false);
     const [loadingStep, setLoadingStep] = useState<'creating' | 'confirming' | 'registering' | 'whitelisting' | 'saving' | null>(null);
     const [propertyTokensWithNames, setPropertyTokensWithNames] = useState<Array<{
@@ -40,7 +43,7 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
         campaign_type: 1, // Default: SINGLE_PROPERTY
         indaRoot: CONTRACTS.polygonAmoy.indaRoot,
         baseToken: CONTRACTS.polygonAmoy.usdc,
-        campaignOwner: CONTRACTS.polygonAmoy.indaAdmin,
+        campaignOwner: user.walletAddress as `0x${string}` || '',
         token_address: '',
         min_cap: '100',
         max_cap: '500',
