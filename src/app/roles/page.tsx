@@ -37,6 +37,7 @@ const ROLE_HASHES = {
     PROPERTIES_MANAGER_ROLE: '0x5caba2aa072f9476eef4eba05f22235aef4612b73d339428b33d92eca0aabf20' as `0x${string}`,
     USER_MANAGER_ROLE: '0x5ebedfa6104e4963a67c17c9b73e50a627c5307e1a07c68dd391bb0e4fc974d3' as `0x${string}`,
     GOVERNANCE_ROLE: '0x71840dc4906352362b0cdaf79870196c8e42acafade72d5d5a6d59291253ceb1' as `0x${string}`,
+    OPERATOR_ROLE: '0x97667070c54ef182b0f5858b034beac1b6f3089aa2d3188bb1e8929f4fa9b929' as `0x${string}`,
 };
 
 type RoleStatus = 'unchecked' | 'checking' | 'granted' | 'not_granted' | 'error';
@@ -48,7 +49,7 @@ interface RoleOption {
     label: string;
     description: string;
     roleHash: `0x${string}`;
-    contractKey: 'indaRoot' | 'propertyRegistry';
+    contractKey: 'indaRoot' | 'propertyRegistry' | 'indaAdminRouter' | 'manager';
     status: RoleStatus;
     grantStatus: GrantStatus;
     selected: boolean;
@@ -195,6 +196,26 @@ export default function RolesPage() {
             grantStatus: 'idle',
             selected: false,
         },
+        {
+            id: 'operator_admin_router',
+            label: 'Operator (IndaAdminRouter)',
+            description: 'Permisos de operador en IndaAdminRouter',
+            roleHash: ROLE_HASHES.OPERATOR_ROLE,
+            contractKey: 'indaAdminRouter',
+            status: 'unchecked',
+            grantStatus: 'idle',
+            selected: false,
+        },
+        {
+            id: 'operator_manager',
+            label: 'Operator (Manager)',
+            description: 'Permisos de operador en el contract Manager',
+            roleHash: ROLE_HASHES.OPERATOR_ROLE,
+            contractKey: 'manager',
+            status: 'unchecked',
+            grantStatus: 'idle',
+            selected: false,
+        },
     ]);
 
     const getContractAddress = (key: string): `0x${string}` => {
@@ -203,6 +224,10 @@ export default function RolesPage() {
                 return POLYGON_CONTRACTS.indaRoot;
             case 'propertyRegistry':
                 return POLYGON_CONTRACTS.propertyRegistry;
+            case 'indaAdminRouter':
+                return CONTRACTS.polygonAmoy.IndaAdminRouter as `0x${string}`;
+            case 'manager':
+                return CONTRACTS.polygonAmoy.manager as `0x${string}`;
             default:
                 throw new Error(`Unknown contract key: ${key}`);
         }
@@ -214,6 +239,10 @@ export default function RolesPage() {
                 return IndaRootAbi;
             case 'propertyRegistry':
                 return PropertyRegistryAbi;
+            case 'indaAdminRouter':
+                return IndaAdminRouterAbi;
+            case 'manager':
+                return ManagerAbi;
             default:
                 return IndaRootAbi;
         }
@@ -693,21 +722,19 @@ export default function RolesPage() {
                 <div className="flex gap-2 border-b border-border">
                     <button
                         onClick={() => setActiveTab('admin')}
-                        className={`px-6 py-3 font-medium transition-all ${
-                            activeTab === 'admin'
+                        className={`px-6 py-3 font-medium transition-all ${activeTab === 'admin'
                                 ? 'text-primary border-b-2 border-primary'
                                 : 'text-muted-foreground hover:text-foreground'
-                        }`}
+                            }`}
                     >
                         Admin Transfer
                     </button>
                     <button
                         onClick={() => setActiveTab('roles')}
-                        className={`px-6 py-3 font-medium transition-all ${
-                            activeTab === 'roles'
+                        className={`px-6 py-3 font-medium transition-all ${activeTab === 'roles'
                                 ? 'text-primary border-b-2 border-primary'
                                 : 'text-muted-foreground hover:text-foreground'
-                        }`}
+                            }`}
                     >
                         Other Roles
                     </button>
@@ -740,13 +767,12 @@ export default function RolesPage() {
                                 {adminContracts.map((contract) => (
                                     <div key={contract.id}>
                                         <label
-                                            className={`flex items-center gap-4 p-4 rounded-xl border transition-all cursor-pointer ${
-                                                contract.selected
+                                            className={`flex items-center gap-4 p-4 rounded-xl border transition-all cursor-pointer ${contract.selected
                                                     ? 'bg-primary/10 border-primary'
                                                     : contract.status === 'failed'
-                                                    ? 'bg-destructive/5 border-destructive/30'
-                                                    : 'bg-secondary/30 border-border hover:bg-secondary/50'
-                                            } ${contract.status === 'pending' || contract.status === 'completed' ? 'opacity-60' : ''}`}
+                                                        ? 'bg-destructive/5 border-destructive/30'
+                                                        : 'bg-secondary/30 border-border hover:bg-secondary/50'
+                                                } ${contract.status === 'pending' || contract.status === 'completed' ? 'opacity-60' : ''}`}
                                         >
                                             <input
                                                 type="checkbox"
@@ -959,11 +985,10 @@ export default function RolesPage() {
                                         {roles.map((role) => (
                                             <label
                                                 key={role.id}
-                                                className={`flex items-center gap-4 p-4 rounded-xl border transition-all cursor-pointer ${
-                                                    role.selected
+                                                className={`flex items-center gap-4 p-4 rounded-xl border transition-all cursor-pointer ${role.selected
                                                         ? 'bg-primary/10 border-primary'
                                                         : 'bg-secondary/30 border-border hover:bg-secondary/50'
-                                                } ${role.status === 'granted' ? 'opacity-60' : ''}`}
+                                                    } ${role.status === 'granted' ? 'opacity-60' : ''}`}
                                             >
                                                 <input
                                                     type="checkbox"
