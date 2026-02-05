@@ -37,7 +37,7 @@ export const CONTRACTS = {
         PropertyRegistry: "0x8F25c386bDF74F2e0190E8eC31bf0D40c7058b94",
         IndaAdminRouter: "0x570309aCCd0182c12d59626C16788449421Ad1e0",
         CommitCampaign: "0xa3CD4445624949F0c7947430546aF9BbbC65DF3e",
-        indahouseRegistry: "0xb81F77d52DD20B66Ae60581571D3Eb4803aE95e6"
+        indahouseRegistry: "0x8F25c386bDF74F2e0190E8eC31bf0D40c7058b94"
     }
 } as const;
 
