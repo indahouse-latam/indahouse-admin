@@ -51,6 +51,8 @@ function SortableMediaItem({ media, onDelete, isDeleting }: SortableMediaItemPro
                   urlLower.includes('/video/') ||
                   urlLower.includes('video');
 
+  const isDocument = media.mediaType === 'DOCUMENT' || media.mediaType === 'PDF' || urlLower.endsWith('.pdf');
+
   const handleVideoLoad = (e: React.SyntheticEvent<HTMLVideoElement>) => {
     const video = e.currentTarget;
     video.currentTime = 1;
@@ -63,7 +65,17 @@ function SortableMediaItem({ media, onDelete, isDeleting }: SortableMediaItemPro
       style={style}
       className="relative aspect-video bg-secondary/30 rounded-lg overflow-hidden border border-border group"
     >
-      {isVideo ? (
+      {isDocument ? (
+        <div className="w-full h-full flex flex-col items-center justify-center bg-red-500/10">
+          <svg className="w-16 h-16 text-red-500 mb-2" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18.5,9H13V3.5L18.5,9M6,20V4H11V9H16V20H6Z" />
+          </svg>
+          <span className="text-xs text-red-500 font-bold">PDF</span>
+          <span className="text-xs text-muted-foreground mt-1 px-2 text-center truncate w-full">
+            {media.fileName}
+          </span>
+        </div>
+      ) : isVideo ? (
         <video
           src={media.fileUrl}
           className="w-full h-full object-cover"
@@ -123,13 +135,18 @@ function SortableMediaItem({ media, onDelete, isDeleting }: SortableMediaItemPro
           VIDEO
         </span>
       )}
+      {isDocument && (
+        <span className="absolute top-2 right-2 text-xs text-white bg-red-500/90 px-2 py-1 rounded">
+          PDF
+        </span>
+      )}
     </div>
   );
 }
 
 interface MediaGalleryManagerProps {
   media: PropertyFeedMedia[];
-  onUpload: (files: File[], mediaType: MediaType) => void;
+  onUpload: (files: File[], mediaType: MediaType, fileName?: string) => void;
   onDelete: (mediaId: string) => void;
   onReorder: (reorderedMedia: PropertyFeedMedia[]) => void;
   isUploading: boolean;
@@ -147,10 +164,22 @@ export function MediaGalleryManager({
   mediaType = 'IMAGE'
 }: MediaGalleryManagerProps) {
   const [localMedia, setLocalMedia] = useState(media);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [documentName, setDocumentName] = useState('');
+  const [wasUploading, setWasUploading] = useState(false);
 
   useEffect(() => {
     setLocalMedia(media);
   }, [media]);
+
+  useEffect(() => {
+    // Limpiar pendingFiles cuando termine la subida
+    if (wasUploading && !isUploading) {
+      setPendingFiles([]);
+      setDocumentName('');
+    }
+    setWasUploading(isUploading);
+  }, [isUploading]);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -181,37 +210,185 @@ export function MediaGalleryManager({
     const validFiles: File[] = [];
     const invalidFiles: string[] = [];
 
-    files.forEach(file => {
-      if (file.type.startsWith('video/') && file.size > MAX_SIZE) {
+    // Para PDFs/Documentos, solo permitir 1 archivo
+    const filesToProcess = (mediaType === 'PDF' || mediaType === 'DOCUMENT') ? files.slice(0, 1) : files;
+
+    filesToProcess.forEach(file => {
+      // Validar tamaño
+      if (file.size > MAX_SIZE) {
         invalidFiles.push(`${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB - máximo 10MB)`);
-      } else {
-        validFiles.push(file);
+        return;
       }
+
+      // Validar tipo de archivo según mediaType
+      const isPDF = file.type === 'application/pdf';
+      const isImage = file.type.startsWith('image/');
+      const isVideo = file.type.startsWith('video/');
+
+      if (mediaType === 'PDF' || mediaType === 'DOCUMENT') {
+        if (!isPDF) {
+          invalidFiles.push(`${file.name} - Solo se permiten archivos PDF en esta sección`);
+          return;
+        }
+      } else if (mediaType === 'IMAGE') {
+        if (!isImage) {
+          invalidFiles.push(`${file.name} - Solo se permiten imágenes en esta sección`);
+          return;
+        }
+      } else if (mediaType === 'VIDEO') {
+        if (!isVideo) {
+          invalidFiles.push(`${file.name} - Solo se permiten videos en esta sección`);
+          return;
+        }
+      }
+
+      validFiles.push(file);
     });
 
     if (invalidFiles.length > 0) {
-      alert(`Los siguientes archivos exceden el límite de 10MB:\n\n${invalidFiles.join('\n')}`);
+      alert(`Los siguientes archivos no son válidos:\n\n${invalidFiles.join('\n')}`);
     }
 
     if (validFiles.length > 0) {
-      // Detectar automáticamente el tipo de medio del primer archivo
-      const detectedMediaType: MediaType = validFiles[0].type.startsWith('video/') ? 'VIDEO' : 'IMAGE';
+      // Para PDFs/Documentos, guardar en pendingFiles y mostrar formulario
+      if (mediaType === 'PDF' || mediaType === 'DOCUMENT') {
+        setPendingFiles(validFiles);
+        setDocumentName('');
+        return;
+      }
+
+      // Para imágenes y videos, subir directamente
+      let detectedMediaType: MediaType = mediaType;
+
+      if (!mediaType || mediaType === 'IMAGE') {
+        const firstFile = validFiles[0];
+        if (firstFile.type === 'application/pdf') {
+          detectedMediaType = 'PDF';
+        } else if (firstFile.type.startsWith('video/')) {
+          detectedMediaType = 'VIDEO';
+        } else {
+          detectedMediaType = 'IMAGE';
+        }
+      }
+
       onUpload(validFiles, detectedMediaType);
     }
   };
 
+  const handleUploadDocument = () => {
+    if (!documentName.trim()) {
+      alert('Por favor ingresa un nombre para el documento');
+      return;
+    }
+
+    if (pendingFiles.length > 0) {
+      onUpload(pendingFiles, mediaType, documentName.trim());
+      setPendingFiles([]);
+      setDocumentName('');
+    }
+  };
+
+  const handleCancelDocument = () => {
+    setPendingFiles([]);
+    setDocumentName('');
+  };
+
+  const getAcceptedFileTypes = () => {
+    if (mediaType === 'PDF' || mediaType === 'DOCUMENT') {
+      return {
+        'application/pdf': ['.pdf']
+      };
+    }
+    if (mediaType === 'IMAGE') {
+      return {
+        'image/*': ['.jpeg', '.jpg', '.png']
+      };
+    }
+    if (mediaType === 'VIDEO') {
+      return {
+        'video/mp4': ['.mp4']
+      };
+    }
+    // Por defecto, aceptar imágenes, videos y PDFs
+    return {
+      'image/*': ['.jpeg', '.jpg', '.png'],
+      'video/mp4': ['.mp4'],
+      'application/pdf': ['.pdf']
+    };
+  };
+
+  const getUploadTitle = () => {
+    if (isUploading) return "Subiendo...";
+    if (mediaType === 'PDF' || mediaType === 'DOCUMENT') return "Arrastra archivos PDF aquí";
+    if (mediaType === 'IMAGE') return "Arrastra imágenes aquí";
+    if (mediaType === 'VIDEO') return "Arrastra videos aquí";
+    return "Arrastra imágenes, videos o PDFs aquí";
+  };
+
+  const getFileTypeDescription = () => {
+    if (mediaType === 'PDF' || mediaType === 'DOCUMENT') return "(.pdf - máx 10MB)";
+    if (mediaType === 'IMAGE') return "(.jpg, .png - máx 10MB)";
+    if (mediaType === 'VIDEO') return "(.mp4 - máx 10MB)";
+    return "(.jpg, .png, .mp4, .pdf - máx 10MB)";
+  };
+
   return (
     <div className="space-y-4">
-      <DragDropUpload
-        title={isUploading ? "Subiendo..." : "Arrastra imágenes o videos aquí"}
-        onFilesDrop={handleFilesDrop}
-        accept={{
-          'image/*': ['.jpeg', '.jpg', '.png'],
-          'video/mp4': ['.mp4']
-        }}
-        maxSize={10485760}
-        fileTypeDescription="(.jpg, .png, .mp4 - máx 10MB)"
-      />
+      {pendingFiles.length === 0 && (
+        <DragDropUpload
+          title={getUploadTitle()}
+          onFilesDrop={handleFilesDrop}
+          accept={getAcceptedFileTypes()}
+          maxSize={10485760}
+          fileTypeDescription={getFileTypeDescription()}
+        />
+      )}
+
+      {pendingFiles.length > 0 && (
+        <div className="p-6 bg-secondary/10 rounded-xl border-2 border-primary/30 space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="flex-1">
+              <p className="text-sm font-medium text-muted-foreground mb-1">Archivo seleccionado:</p>
+              <p className="text-sm font-bold">{pendingFiles[0].name}</p>
+              <p className="text-xs text-muted-foreground">
+                {(pendingFiles[0].size / 1024 / 1024).toFixed(2)} MB
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground">
+              Nombre del documento <span className="text-destructive">*</span>
+            </label>
+            <input
+              type="text"
+              value={documentName}
+              onChange={(e) => setDocumentName(e.target.value)}
+              placeholder="Ej: Certificado de Tradición y Libertad"
+              className="w-full bg-background border border-border rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary focus:border-primary outline-none"
+              autoFocus
+            />
+          </div>
+
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={handleCancelDocument}
+              className="flex-1 px-4 py-2.5 text-sm font-medium border border-border rounded-lg hover:bg-secondary transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={handleUploadDocument}
+              disabled={!documentName.trim()}
+              className="flex-1 px-4 py-2.5 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Subir Documento
+            </button>
+          </div>
+        </div>
+      )}
 
       {isUploading && (
         <div className="flex items-center justify-center gap-2 p-4 bg-secondary/20 rounded-lg">

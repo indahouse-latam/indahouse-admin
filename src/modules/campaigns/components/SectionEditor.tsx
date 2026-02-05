@@ -29,9 +29,21 @@ export function SectionEditor({ section, content, propertyId, onUpdate }: Sectio
     setLocalMedia(content.media);
   }, [content.media]);
 
-  const handleUpload = (files: File[], mediaType: MediaType) => {
+  const getMediaTypeFromSectionKey = (sectionKey: string): MediaType => {
+    const sectionKeyLower = sectionKey.toLowerCase();
+
+    if (sectionKeyLower.includes('document')) {
+      return 'PDF';
+    }
+    if (sectionKeyLower.includes('video')) {
+      return 'VIDEO';
+    }
+    return 'IMAGE';
+  };
+
+  const handleUpload = (files: File[], mediaType: MediaType, fileName?: string) => {
     uploadMedia(
-      { files, mediaType, sectionKey: section.sectionKey },
+      { files, mediaType, sectionKey: section.sectionKey, fileName },
       {
         onSuccess: () => {
           onUpdate?.();
@@ -116,7 +128,7 @@ export function SectionEditor({ section, content, propertyId, onUpdate }: Sectio
         onReorder={handleReorder}
         isUploading={isUploading}
         isDeleting={isDeleting}
-        mediaType="IMAGE"
+        mediaType={getMediaTypeFromSectionKey(section.sectionKey)}
       />
     </div>
   );

@@ -14,16 +14,18 @@ export function usePropertyFeedEditor(propertyId: string | null) {
     mutationFn: ({
       files,
       mediaType,
-      sectionKey
+      sectionKey,
+      fileName
     }: {
       files: File[];
       mediaType: MediaType;
       sectionKey: string;
+      fileName?: string;
     }) => {
       if (!propertyId) {
         throw new Error('Property ID is required');
       }
-      return PropertyFeedService.uploadMedia(propertyId, files, mediaType, sectionKey);
+      return PropertyFeedService.uploadMedia(propertyId, files, mediaType, sectionKey, fileName);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['feed', propertyId] });

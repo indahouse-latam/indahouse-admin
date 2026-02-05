@@ -61,7 +61,8 @@ export class PropertyFeedService {
     propertyId: string,
     files: File[],
     mediaType: MediaType,
-    sectionKey: string
+    sectionKey: string,
+    fileName?: string
   ): Promise<any> {
     const formData = new FormData();
 
@@ -71,6 +72,10 @@ export class PropertyFeedService {
 
     formData.append('mediaType', mediaType);
     formData.append('sectionKey', sectionKey);
+
+    if (fileName) {
+      formData.append('fileName', fileName);
+    }
 
     const response = await fetchApi(
       `/properties/${propertyId}/feed/media`,

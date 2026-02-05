@@ -25,6 +25,7 @@ export function EditPropertyModal({ isOpen, onClose, property }: EditPropertyMod
         description: '',
         price: '',
         valuation: '',
+        roi: '',
         property_type: '1',
         stratum: '4',
         built_time: '1',
@@ -57,6 +58,7 @@ export function EditPropertyModal({ isOpen, onClose, property }: EditPropertyMod
                 description: property.description || '',
                 price: typeof property.price === 'string' ? property.price : property.price?.toString() || '',
                 valuation: typeof property.valuation === 'string' ? property.valuation : property.valuation?.toString() || '',
+                roi: typeof property.roi === 'string' ? property.roi : property.roi?.toString() || '',
                 property_type: propType.toString(),
                 stratum: property.stratum?.toString() || '4',
                 built_time: builtTime.toString(),
@@ -100,6 +102,7 @@ export function EditPropertyModal({ isOpen, onClose, property }: EditPropertyMod
             description: formData.description,
             price: Number.parseFloat(formData.price),
             valuation: Number.parseFloat(formData.valuation),
+            roi: formData.roi ? Number.parseFloat(formData.roi) : undefined,
             property_type: Number.parseInt(formData.property_type),
             stratum: Number.parseInt(formData.stratum),
             built_time: Number.parseInt(formData.built_time.toString()),
@@ -191,7 +194,7 @@ export function EditPropertyModal({ isOpen, onClose, property }: EditPropertyMod
                         <div>
                             <h3 className="text-xl font-bold">Editar Propiedad</h3>
                             <p className="text-xs text-muted-foreground">
-                                {property.nameReference || property.name_reference} - ID: {property.id.substring(0, 8)}
+                                {property.nameReference || property.name_reference} - ID: {property.id}
                             </p>
                         </div>
                     </div>
@@ -329,6 +332,18 @@ export function EditPropertyModal({ isOpen, onClose, property }: EditPropertyMod
                                         placeholder="Describe la propiedad en detalle..."
                                         value={formData.description}
                                         onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-bold uppercase text-muted-foreground">ROI (%)</label>
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        className="w-full bg-secondary-100 border border-secondary-300 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
+                                        placeholder="Ej: 8.5"
+                                        value={formData.roi}
+                                        onChange={(e) => setFormData({ ...formData, roi: e.target.value })}
                                     />
                                 </div>
                             </div>

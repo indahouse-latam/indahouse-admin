@@ -16,6 +16,41 @@ interface RegisterPropertyModalProps {
 
 type TabType = 'general' | 'details' | 'multimedia' | 'location';
 
+const INITIAL_FORM_DATA = {
+    user_id: '',
+    name_reference: '',
+    description: '',
+    price: '',
+    valuation: '',
+    roi: '',
+    property_type: '1',
+    stratum: '4',
+    built_time: '1',
+    buyback_time: '12',
+    status: 'VERIFIED' as 'VERIFIED' | 'CREATED' | 'PENDING' | 'IN_PROGRESS' | 'DENIED' | 'BOUGHT',
+    location: {
+        address: '',
+        full_location: '',
+        short_location: '',
+        latitude: undefined,
+        longitude: undefined
+    } as LocationData,
+    main_characteristics: [
+        { label: 'Habitaciones', value: '2', icon: 'bed' },
+        { label: 'Baños', value: '2', icon: 'bath' },
+        { label: 'Area (m2)', value: '65', icon: 'maximize' },
+        { label: 'Parqueaderos', value: '1', icon: 'car' }
+    ],
+    extra_characteristics: [] as { label: string }[],
+    monthly_expenses: [
+        { label: 'Administración', amount: '250000' }
+    ],
+    payment_plan: {
+        booking_amount: '5000000',
+        installments: '12'
+    }
+};
+
 export function RegisterPropertyModal({ isOpen, onClose }: RegisterPropertyModalProps) {
     const { data: usersResponse } = useUsers();
     const users = usersResponse || [];
@@ -25,41 +60,18 @@ export function RegisterPropertyModal({ isOpen, onClose }: RegisterPropertyModal
     const [createdPropertyId, setCreatedPropertyId] = useState<string | null>(null);
     const [propertyData, setPropertyData] = useState<any>(null);
 
-    const [formData, setFormData] = useState({
-        user_id: '',
-        name_reference: '',
-        description: '',
-        price: '',
-        valuation: '',
-        property_type: '1',
-        stratum: '4',
-        built_time: '1',
-        buyback_time: '12',
-        status: 'VERIFIED' as 'VERIFIED' | 'CREATED' | 'PENDING' | 'IN_PROGRESS' | 'DENIED' | 'BOUGHT',
-        location: {
-            address: '',
-            full_location: '',
-            short_location: '',
-            latitude: undefined,
-            longitude: undefined
-        } as LocationData,
-        main_characteristics: [
-            { label: 'Habitaciones', value: '2', icon: 'bed' },
-            { label: 'Baños', value: '2', icon: 'bath' },
-            { label: 'Area (m2)', value: '65', icon: 'maximize' },
-            { label: 'Parqueaderos', value: '1', icon: 'car' }
-        ],
-        extra_characteristics: [] as { label: string }[],
-        monthly_expenses: [
-            { label: 'Administración', amount: '250000' }
-        ],
-        payment_plan: {
-            booking_amount: '5000000',
-            installments: '12'
-        }
-    });
+    const [formData, setFormData] = useState(INITIAL_FORM_DATA);
 
     if (!isOpen) return null;
+
+    const handleClose = () => {
+        setFormData(INITIAL_FORM_DATA);
+        setCreatedPropertyId(null);
+        setPropertyData(null);
+        setActiveTab('general');
+        setIsSubmitting(false);
+        onClose();
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -78,6 +90,7 @@ export function RegisterPropertyModal({ isOpen, onClose }: RegisterPropertyModal
                 description: formData.description,
                 price: Number.parseFloat(formData.price),
                 valuation: Number.parseFloat(formData.valuation),
+                roi: formData.roi ? Number.parseFloat(formData.roi) : undefined,
                 property_type: Number.parseInt(formData.property_type),
                 stratum: Number.parseInt(formData.stratum),
                 built_time: Number.parseInt(formData.built_time.toString()),
@@ -186,7 +199,7 @@ export function RegisterPropertyModal({ isOpen, onClose }: RegisterPropertyModal
                             </p>
                         </div>
                     </div>
-                    <button onClick={onClose} className="p-2 hover:bg-secondary rounded-full transition-colors">
+                    <button onClick={handleClose} className="p-2 hover:bg-secondary rounded-full transition-colors">
                         <X className="w-5 h-5" />
                     </button>
                 </div>
@@ -344,6 +357,18 @@ export function RegisterPropertyModal({ isOpen, onClose }: RegisterPropertyModal
                                         onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                                     />
                                 </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-bold uppercase text-muted-foreground">ROI (%)</label>
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        className="w-full bg-secondary-100 border border-secondary-300 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
+                                        placeholder="Ej: 8.5"
+                                        value={formData.roi}
+                                        onChange={(e) => setFormData({ ...formData, roi: e.target.value })}
+                                    />
+                                </div>
                             </div>
                         </div>
                     )}
@@ -483,7 +508,7 @@ export function RegisterPropertyModal({ isOpen, onClose }: RegisterPropertyModal
                 <div className="p-6 border-t border-border flex justify-end gap-4 bg-background z-10">
                     <button
                         type="button"
-                        onClick={onClose}
+                        onClick={handleClose}
                         className="px-8 py-2.5 rounded-xl border border-border hover:bg-secondary transition-colors text-sm font-bold"
                     >
                         {createdPropertyId ? 'Cerrar' : 'Cancelar'}
@@ -505,7 +530,7 @@ export function RegisterPropertyModal({ isOpen, onClose }: RegisterPropertyModal
                         </button>
                     ) : (
                         <button
-                            onClick={onClose}
+                            onClick={handleClose}
                             className="px-8 py-2.5 rounded-xl bg-indigo-500 text-white hover:bg-indigo-600 transition-all flex items-center gap-2 text-sm font-bold shadow-lg shadow-indigo-500/20"
                         >
                             Finalizar

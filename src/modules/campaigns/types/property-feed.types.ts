@@ -13,7 +13,7 @@ export interface PropertyFeedMedia {
   id: string;
   propertyId: string;
   feedContentId: string;
-  mediaType: 'IMAGE' | 'VIDEO' | 'DOCUMENT';
+  mediaType: 'IMAGE' | 'VIDEO' | 'DOCUMENT' | 'PDF';
   fileName: string;
   fileUrl: string;
   bucketName: string;
@@ -66,4 +66,4 @@ export interface ReorderMediaPayload {
   newOrder: number;
 }
 
-export type MediaType = 'IMAGE' | 'VIDEO' | 'DOCUMENT';
+export type MediaType = 'IMAGE' | 'VIDEO' | 'DOCUMENT' | 'PDF';
