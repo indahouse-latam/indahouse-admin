@@ -16,27 +16,27 @@ export const CONTRACTS = {
         distributorProxy: "0xe7A2cC2f4da50054D80Db0E10e34652B9fb2Fb3C",
     },
     polygonAmoy: {
-        indaRoot: "0xd95f8793Bf37dA1971E980A836021b4719418fD8",
+        indaRoot: "0x926c877C81C364BE726893Ad617b47A1AA7E6FE5",
         baseToken: "0x6C9A47762AAE694067903F4A7aB65E074488c625", // COPS/USDC on Amoy Testnet
         cops: "0x6C9A47762AAE694067903F4A7aB65E074488c625",
         usdc: "0x6C9A47762AAE694067903F4A7aB65E074488c625",
         InDH: "0xb95cc5ee156c95d0a706f186718c146f2a3b2747",
-        indaProperties: "0x5cA7F0CfeCc0c657925D780f95A18582495074b4",
+        indaProperties: "0x8BAF3E59224E2844E1F66FD5D2C82bF8DfA92bC2",
         landOwner: "0x785072e12585dac0fc1543b45c67826e8d5f8f7e",
         adminAddress: "0x8BF99a1B2725bfb4D018e145967A7300a088A7a7",
-        indaAdmin: "0xab006368DF00f110c0c00C0b6F2E5A86612c00bc",
-        indaLock: "0x56e8F6A9C851c7E86469d0a44A47b0f683d0d9fa",
-        capitalGainsVault: "0x5fcf26c62f6c7964cb08240e9cc4fb21ea38c183",
-        router:"0xa8b1616D2bfb9AFB163fc94a26708A3E27D28790",
-        rentVault: "0x1a68Df55B5DdE85451146651AE17F757F6CE83462",
+        indaAdmin: "0x7d9A29ED1fC36F1b2FCc82851cF5c960FD43b0DA",
+        indaLock: "0x40e1227c0Cc7610743EBBD44F43aE24824754357",
+        capitalGainsVault: "0x5d9233E3599ce6C8469170E25AF5f1b83DE903cA",
+        router: "0x570309aCCd0182c12d59626C16788449421Ad1e0",
+        rentVault: "0x5d9233E3599ce6C8469170E25AF5f1b83DE903cA",
         sIndh: "0xd2e15302d122a5831beb044ac0894c9789c50cc6",
-        commitFactory: "0xBEa105e88a8a6bC20F3EF5dbD55e6280292d959a",
-        tokenFactory: "0x63370230128509ae9e2CE28C2F11a41EDc84fB6d",
-        distributorProxy: "0x7BA3F5d02728939945Db8feb0bCaA73f02198Dac", // indaDistributorProxy
-        manager: "0xE4ccc06D6f80F64557Ed1D5Fa8D911521D3deAbC",
-        PropertyRegistry : "0x7af5a48EfA9ECE2c69a9Cd350ea65673f94BC5DC",
-        IndaAdminRouter : "0xF7D1e545461d7a2414BF047B0AA642d603b99763",
-        CommitCampaign: "0xf454FA1Bbbe80d0437D7280BE1e4E1Fc79a59cb5",
+        commitFactory: "0x8e4bD0efBB08C75F4c5707C99d4216B66c758087",
+        tokenFactory: "0xdCFb1aa14159874C5f4C7C2Dcf55Fd373286BC45",
+        distributorProxy: "0x3445424bD3A1e8AB47EC8eE3313ecdee2314b704", // indaDistributorProxy
+        manager: "0x17Cc132c6760222e19F940683ab6602759421a4D",
+        PropertyRegistry: "0x8F25c386bDF74F2e0190E8eC31bf0D40c7058b94",
+        IndaAdminRouter: "0x570309aCCd0182c12d59626C16788449421Ad1e0",
+        CommitCampaign: "0xa3CD4445624949F0c7947430546aF9BbbC65DF3e",
         indahouseRegistry: "0xb81F77d52DD20B66Ae60581571D3Eb4803aE95e6"
     }
 } as const;
