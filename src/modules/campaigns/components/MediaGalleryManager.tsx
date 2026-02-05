@@ -18,7 +18,7 @@ import {
   rectSortingStrategy
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { X, GripVertical, Loader2, Upload } from 'lucide-react';
+import { X, GripVertical, Loader2, Upload, FileText, ExternalLink } from 'lucide-react';
 import { DragDropUpload } from '@/components/DragDropUpload';
 import type { PropertyFeedMedia, MediaType } from '../types/property-feed.types';
 
@@ -46,10 +46,11 @@ function SortableMediaItem({ media, onDelete, isDeleting }: SortableMediaItemPro
 
   const urlLower = media.fileUrl?.toLowerCase() || '';
   const isVideo = urlLower.endsWith('.mp4') ||
-                  urlLower.endsWith('mp4') ||
-                  urlLower.includes('.mp4') ||
-                  urlLower.includes('/video/') ||
-                  urlLower.includes('video');
+    urlLower.endsWith('mp4') ||
+    urlLower.includes('.mp4') ||
+    urlLower.includes('/video/') ||
+    urlLower.includes('video');
+  const isDocument = media.mediaType === 'DOCUMENT' || media.mediaType === 'FINANCIAL' || urlLower.endsWith('.pdf');
 
   const handleVideoLoad = (e: React.SyntheticEvent<HTMLVideoElement>) => {
     const video = e.currentTarget;
@@ -86,6 +87,22 @@ function SortableMediaItem({ media, onDelete, isDeleting }: SortableMediaItemPro
         >
           <source src={media.fileUrl} type="video/mp4" />
         </video>
+      ) : isDocument ? (
+        <div className="w-full h-full flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-900 text-muted-foreground p-4">
+          <FileText className="w-8 h-8 mb-2" />
+          <span className="text-xs text-center line-clamp-2 px-2 max-w-full">
+            {media.fileName || 'Documento'}
+          </span>
+          <a
+            href={media.fileUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="absolute top-2 right-2 p-1.5 bg-background/80 rounded-full hover:bg-background transition-colors"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <ExternalLink className="w-3 h-3 text-primary" />
+          </a>
+        </div>
       ) : (
         <img
           src={media.fileUrl}

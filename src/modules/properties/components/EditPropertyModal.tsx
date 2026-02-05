@@ -5,6 +5,7 @@ import { X, DollarSign, Home, Layout, Plus, Trash2, Loader2, Building2, FileText
 import { toast } from 'sonner';
 import { LocationFields, type LocationData } from '@/components/LocationFields';
 import { PropertyMultimediaSection } from '@/modules/campaigns/components/PropertyMultimediaSection';
+import { FinancialDocumentsSection } from './FinancialDocumentsSection';
 import { Property } from '../hooks/useProperties';
 import { useProperties } from '../hooks/useProperties';
 
@@ -14,7 +15,7 @@ interface EditPropertyModalProps {
     property: Property;
 }
 
-type TabType = 'general' | 'details' | 'location' | 'multimedia';
+type TabType = 'general' | 'details' | 'location' | 'multimedia' | 'financial';
 
 export function EditPropertyModal({ isOpen, onClose, property }: EditPropertyModalProps) {
     const { updateProperty, isUpdating } = useProperties();
@@ -67,8 +68,8 @@ export function EditPropertyModal({ isOpen, onClose, property }: EditPropertyMod
                     address: property.location?.address || '',
                     full_location: fullLoc,
                     short_location: shortLoc,
-                    latitude: property.location?.latitude,
-                    longitude: property.location?.longitude
+                    latitude: property.location?.latitude ? Number(property.location.latitude) : undefined,
+                    longitude: property.location?.longitude ? Number(property.location.longitude) : undefined
                 },
                 main_characteristics: property.main_characteristics?.map(c => ({
                     id: c.id,
@@ -112,7 +113,7 @@ export function EditPropertyModal({ isOpen, onClose, property }: EditPropertyMod
                 short_location: formData.location.short_location,
                 ...(formData.location.latitude && { latitude: formData.location.latitude }),
                 ...(formData.location.longitude && { longitude: formData.location.longitude })
-            },
+            } as any,
             main_characteristics: formData.main_characteristics
                 .filter(char => char.label && char.value)
                 .map(char => ({
@@ -224,6 +225,12 @@ export function EditPropertyModal({ isOpen, onClose, property }: EditPropertyMod
                         className={`px-6 py-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'multimedia' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
                     >
                         Multimedia
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('financial')}
+                        className={`px-6 py-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'financial' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+                    >
+                        Documentos
                     </button>
                 </div>
 
@@ -505,8 +512,14 @@ export function EditPropertyModal({ isOpen, onClose, property }: EditPropertyMod
                         <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
                             <PropertyMultimediaSection
                                 propertyId={property.id}
-                                onComplete={() => {}}
+                                onComplete={() => { }}
                             />
+                        </div>
+                    )}
+
+                    {activeTab === 'financial' && (
+                        <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                            <FinancialDocumentsSection property={property} />
                         </div>
                     )}
                 </form>

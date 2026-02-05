@@ -38,10 +38,15 @@ export interface Property {
   main_characteristics: Array<{ name: string; description: string; id?: string; propertyId?: string; createdAt?: string; updatedAt?: string }>;
   extra_characteristics: Array<{ name: string; description: string; id?: string; propertyId?: string; createdAt?: string; updatedAt?: string }>;
   monthly_expenses: Array<{ name: string; price: number | string; icon?: string; id?: string; propertyId?: string; createdAt?: string; updatedAt?: string }>;
-  created_at?: string;
   createdAt?: string;
   property_reference?: string;
   propertyReference?: string;
+  files?: {
+    images: any[];
+    documents: any[];
+    financial_documents: any[];
+  };
+  financial_documents?: any[]; // For convenience if flattened
 }
 
 interface PropertiesResponse {
@@ -87,6 +92,8 @@ const normalizeProperty = (prop: any): Property => {
       ...exp,
       price: typeof exp.price === 'string' ? parseFloat(exp.price) : exp.price,
     })),
+    files: prop.files || { images: [], documents: [], financial_documents: [] },
+    financial_documents: prop.files?.financial_documents || [],
   };
 };
 
@@ -128,9 +135,42 @@ export const useProperties = (status?: string) => {
     },
   });
 
+  const uploadDocumentMutation = useMutation({
+    mutationFn: async ({
+      propertyId,
+      files,
+      type
+    }: {
+      propertyId: string;
+      files: File[];
+      type: 'financial' | 'document';
+    }) => {
+      const formData = new FormData();
+      files.forEach((file) => formData.append('files', file));
+      formData.append('type', type);
+
+      return await fetchApi(`/properties/${propertyId}/documentation`, {
+        method: 'POST',
+        body: formData,
+        headers: {
+          // Content-Type is handled automatically by browser for FormData
+        }
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['properties'] });
+      toast.success('Documento subido exitosamente');
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Error al subir documento');
+    },
+  });
+
   return {
     ...query,
     updateProperty: updatePropertyMutation.mutate,
     isUpdating: updatePropertyMutation.isPending,
+    uploadDocument: uploadDocumentMutation.mutate,
+    isUploadingDocument: uploadDocumentMutation.isPending,
   };
 };

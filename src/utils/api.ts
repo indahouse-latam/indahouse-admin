@@ -2,7 +2,7 @@
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
-export async function fetchApi(endpoint: string, options: RequestInit = {}) {
+export async function fetchApi<T = any>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const storedUser = typeof globalThis.window !== 'undefined' ? localStorage.getItem('admin_user') : null;
     const user = storedUser ? JSON.parse(storedUser) : null;
     const token = user?.token;
