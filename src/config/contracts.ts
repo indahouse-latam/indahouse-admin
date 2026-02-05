@@ -34,7 +34,7 @@ export const CONTRACTS = {
         tokenFactory: "0xdCFb1aa14159874C5f4C7C2Dcf55Fd373286BC45",
         distributorProxy: "0x3445424bD3A1e8AB47EC8eE3313ecdee2314b704", // indaDistributorProxy
         manager: "0x17Cc132c6760222e19F940683ab6602759421a4D",
-        PropertyRegistry: "0x8F25c386bDF74F2e0190E8eC31bf0D40c7058b94",
+        PropertyRegistry: "0x81E3021610FDad6779e61B4942F2a6833972C5Dc",
         IndaAdminRouter: "0x570309aCCd0182c12d59626C16788449421Ad1e0",
         CommitCampaign: "0xa3CD4445624949F0c7947430546aF9BbbC65DF3e",
         indahouseRegistry: "0x8F25c386bDF74F2e0190E8eC31bf0D40c7058b94"
