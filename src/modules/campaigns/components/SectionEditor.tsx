@@ -29,7 +29,7 @@ export function SectionEditor({ section, content, propertyId, onUpdate }: Sectio
     setLocalMedia(content.media);
   }, [content.media]);
 
-  const getMediaTypeFromSectionKey = (sectionKey: string): MediaType => {
+  const getMediaTypeFromSectionKey = (sectionKey: string): MediaType | undefined => {
     const sectionKeyLower = sectionKey.toLowerCase();
 
     if (sectionKeyLower.includes('document')) {
@@ -37,6 +37,9 @@ export function SectionEditor({ section, content, propertyId, onUpdate }: Sectio
     }
     if (sectionKeyLower.includes('video')) {
       return 'VIDEO';
+    }
+    if (sectionKeyLower === 'cover') {
+      return undefined;
     }
     return 'IMAGE';
   };
