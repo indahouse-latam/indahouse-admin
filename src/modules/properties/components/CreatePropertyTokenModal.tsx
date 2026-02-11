@@ -164,7 +164,7 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
                         name: formData.name,
                         status: 'active',
                         property_id: formData?.property_id,
-                        // price_per_token: formData.price_per_token,
+                        price_per_token: formData?.price_per_token,
                         // sale_start_date: formData.sale_start_date,
                     },
                     {

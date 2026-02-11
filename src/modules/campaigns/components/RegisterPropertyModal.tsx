@@ -8,13 +8,15 @@ import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { LocationFields, type LocationData } from '@/components/LocationFields';
 import { PropertyMultimediaSection } from './PropertyMultimediaSection';
+import { PropertyRiskSection } from '@/modules/properties/components/PropertyRiskSection';
+import { InvestmentStatesSection } from '@/modules/properties/components/InvestmentStatesSection';
 
 interface RegisterPropertyModalProps {
     isOpen: boolean;
     onClose: () => void;
 }
 
-type TabType = 'general' | 'details' | 'multimedia' | 'location';
+type TabType = 'general' | 'details' | 'multimedia' | 'location' | 'risk' | 'investment';
 
 const INITIAL_FORM_DATA = {
     user_id: '',
@@ -232,6 +234,20 @@ export function RegisterPropertyModal({ isOpen, onClose }: RegisterPropertyModal
                         className={`px-6 py-3 text-sm font-bold border-b-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${activeTab === 'multimedia' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
                     >
                         Multimedia
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('risk')}
+                        disabled={!createdPropertyId}
+                        className={`px-6 py-3 text-sm font-bold border-b-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${activeTab === 'risk' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+                    >
+                        Riesgo
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('investment')}
+                        disabled={!createdPropertyId}
+                        className={`px-6 py-3 text-sm font-bold border-b-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${activeTab === 'investment' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+                    >
+                        Inversion
                     </button>
                 </div>
 
@@ -500,6 +516,18 @@ export function RegisterPropertyModal({ isOpen, onClose }: RegisterPropertyModal
                                 value={formData.location}
                                 onChange={(location) => setFormData({ ...formData, location })}
                             />
+                        </div>
+                    )}
+
+                    {activeTab === 'risk' && (
+                        <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                            <PropertyRiskSection propertyId={createdPropertyId} />
+                        </div>
+                    )}
+
+                    {activeTab === 'investment' && (
+                        <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                            <InvestmentStatesSection propertyId={createdPropertyId} />
                         </div>
                     )}
 

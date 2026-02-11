@@ -5,6 +5,8 @@ import { X, DollarSign, Home, Layout, Plus, Trash2, Loader2, Building2, FileText
 import { toast } from 'sonner';
 import { LocationFields, type LocationData } from '@/components/LocationFields';
 import { PropertyMultimediaSection } from '@/modules/campaigns/components/PropertyMultimediaSection';
+import { PropertyRiskSection } from './PropertyRiskSection';
+import { InvestmentStatesSection } from './InvestmentStatesSection';
 import { Property } from '../hooks/useProperties';
 import { useProperties } from '../hooks/useProperties';
 
@@ -14,7 +16,7 @@ interface EditPropertyModalProps {
     property: Property;
 }
 
-type TabType = 'general' | 'details' | 'location' | 'multimedia';
+type TabType = 'general' | 'details' | 'location' | 'multimedia' | 'risk' | 'investment';
 
 export function EditPropertyModal({ isOpen, onClose, property }: EditPropertyModalProps) {
     const { updateProperty, isUpdating } = useProperties();
@@ -227,6 +229,18 @@ export function EditPropertyModal({ isOpen, onClose, property }: EditPropertyMod
                         className={`px-6 py-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'multimedia' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
                     >
                         Multimedia
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('risk')}
+                        className={`px-6 py-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'risk' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+                    >
+                        Riesgo
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('investment')}
+                        className={`px-6 py-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'investment' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+                    >
+                        Inversion
                     </button>
                 </div>
 
@@ -524,9 +538,21 @@ export function EditPropertyModal({ isOpen, onClose, property }: EditPropertyMod
                             />
                         </div>
                     )}
+
+                    {activeTab === 'risk' && (
+                        <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                            <PropertyRiskSection propertyId={property.id} />
+                        </div>
+                    )}
+
+                    {activeTab === 'investment' && (
+                        <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                            <InvestmentStatesSection propertyId={property.id} />
+                        </div>
+                    )}
                 </form>
 
-                {activeTab !== 'multimedia' && (
+                {!['multimedia', 'risk', 'investment'].includes(activeTab) && (
                     <div className="p-6 border-t border-border flex justify-end gap-3 bg-secondary/5">
                         <button
                             type="button"

@@ -13,6 +13,7 @@ interface CreatePropertyTokenPayload {
     name: string;
     status: 'active';
     property_id: string;
+    price_per_token?: string;
 }
 export interface PropertyTokenResponse {
     id:                 string;
