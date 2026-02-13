@@ -10,6 +10,7 @@ import { LocationFields, type LocationData } from '@/components/LocationFields';
 import { PropertyMultimediaSection } from './PropertyMultimediaSection';
 import { PropertyRiskSection } from '@/modules/properties/components/PropertyRiskSection';
 import { InvestmentStatesSection } from '@/modules/properties/components/InvestmentStatesSection';
+import { PROPERTY_TYPES, PROPERTY_STRATA } from '@/modules/properties/constants';
 
 interface RegisterPropertyModalProps {
     isOpen: boolean;
@@ -25,7 +26,7 @@ const INITIAL_FORM_DATA = {
     price: '',
     valuation: '',
     roi: '',
-    property_type: '1',
+    property_type: '0',
     stratum: '4',
     built_time: '1',
     buyback_time: '12',
@@ -384,6 +385,33 @@ export function RegisterPropertyModal({ isOpen, onClose }: RegisterPropertyModal
                                         value={formData.roi}
                                         onChange={(e) => setFormData({ ...formData, roi: e.target.value })}
                                     />
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-bold uppercase text-muted-foreground">Tipo de Propiedad</label>
+                                        <select
+                                            className="w-full bg-secondary-100 border border-secondary-300 rounded-lg px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                                            value={formData.property_type}
+                                            onChange={(e) => setFormData({ ...formData, property_type: e.target.value })}
+                                        >
+                                            {PROPERTY_TYPES.map((type, index) => (
+                                                <option key={index} value={index}>{type}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-bold uppercase text-muted-foreground">Estrato</label>
+                                        <select
+                                            className="w-full bg-secondary-100 border border-secondary-300 rounded-lg px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                                            value={formData.stratum}
+                                            onChange={(e) => setFormData({ ...formData, stratum: e.target.value })}
+                                        >
+                                            {PROPERTY_STRATA.map((stratum) => (
+                                                <option key={stratum} value={stratum}>Estrato {stratum}</option>
+                                            ))}
+                                        </select>
+                                    </div>
                                 </div>
                             </div>
                         </div>
