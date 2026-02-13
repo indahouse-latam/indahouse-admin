@@ -9,6 +9,7 @@ import { PropertyRiskSection } from './PropertyRiskSection';
 import { InvestmentStatesSection } from './InvestmentStatesSection';
 import { Property } from '../hooks/useProperties';
 import { useProperties } from '../hooks/useProperties';
+import { PROPERTY_TYPES, PROPERTY_STRATA } from '../constants';
 
 interface EditPropertyModalProps {
     isOpen: boolean;
@@ -359,6 +360,33 @@ export function EditPropertyModal({ isOpen, onClose, property }: EditPropertyMod
                                         value={formData.roi}
                                         onChange={(e) => setFormData({ ...formData, roi: e.target.value })}
                                     />
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-bold uppercase text-muted-foreground">Tipo de Propiedad</label>
+                                        <select
+                                            className="w-full bg-secondary-100 border border-secondary-300 rounded-lg px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                                            value={formData.property_type}
+                                            onChange={(e) => setFormData({ ...formData, property_type: e.target.value })}
+                                        >
+                                            {PROPERTY_TYPES.map((type, index) => (
+                                                <option key={index} value={index}>{type}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-bold uppercase text-muted-foreground">Estrato</label>
+                                        <select
+                                            className="w-full bg-secondary-100 border border-secondary-300 rounded-lg px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                                            value={formData.stratum}
+                                            onChange={(e) => setFormData({ ...formData, stratum: e.target.value })}
+                                        >
+                                            {PROPERTY_STRATA.map((stratum) => (
+                                                <option key={stratum} value={stratum}>Estrato {stratum}</option>
+                                            ))}
+                                        </select>
+                                    </div>
                                 </div>
                             </div>
                         </div>
