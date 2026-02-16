@@ -42,43 +42,43 @@ export interface ContractsConfig {
     timestamp: number;
 }
 
-// Default values - using hardcoded Fallbacks or Empty strings if not in CONTRACTS
+// Default values - deployment-docs (Amoy 80002, CO)
 const DEFAULT_CONFIG: ContractsConfig = {
     batch1: {
-        certFactory: "0xB249212d4ef24fb04B9ee8AA1BA7e31e581756e1",
-        govFactory: "0x00693E284f3d40FCc00F17DB4213D2E08B1425F9",
-        managerFactory: "0x2F3bB4E693136d61152885Cc186C2B159d5C4FCc",
-        poolFactory: "0xfA073CD88AB9d1619047A10150ae587AD87B1bC6",
-        registry: "0x7483d5F756590423031FC5c452a98Ac8ef7f4641",
-        timeLock: "0x56e8F6A9C851c7E86469d0a44A47b0f683d0d9fa",
-        tokenFactory: "0x9B7b22Cf5Bf1BbbB5D958534339c1c72D95eC9D7"
+        certFactory: "0x1b8dBfD660984d0457c984282FC389556c4fcA77",
+        govFactory: "0x101A7A4E8a37ffe0321f446b3d4275c58A6F548F",
+        managerFactory: "0xD4aE289b094261Fc43b7D19C6aD7F69440184572",
+        poolFactory: "0x362C175AC5B165D5e6dCe2513a8f0A90B28BA92E",
+        registry: "0x2C492144dc424B0172eDb97E90b4E4cC8B1c4ed9",
+        timeLock: "0x693861c5AF551F654236b0146dd272682a4bC458",
+        tokenFactory: "0xbe0611f08bB481f3394C0eC32a0e9c6b83a59B2e"
     },
     batch2: {
-        campaignImpl: "0x795021851Db0ffd6076F26e08628f887a53E2Bf5",
-        distributorImpl: "0xa316bbda7f42dCD16227fA2029b78aD87539efA7",
-        indaAdmin: CONTRACTS.baseSepolia.adminAddress || "0x8BF99a1B2725bfb4D018e145967A7300a088A7a7",
-        indaProperties: "0xf057885289b816B4c1e7335D638Af03940708791",
-        indaRootImpl: "0x23bd14Bc1B3B64736893A775A9CF98a2e315e357",
-        propertyRegistryImpl: "0x0Ad0502429A258075EEb269e642D0d6a26cD58cE"
+        campaignImpl: "0xCd9Da0a17Da274ae3438F67cAF1cbD06a785C98d",
+        distributorImpl: "0x43b1C3aE275253f1E4DA8c6151718DB674CBBcbE",
+        indaAdmin: CONTRACTS.polygonAmoy.indaAdmin,
+        indaProperties: "0x2Fb5632a92F899682442f244B7A89c9E6c6CCec2",
+        indaRootImpl: "0xF1e869E6Ece5B014efb9e70aeCaf8999209BFfD2",
+        propertyRegistryImpl: "0x522786BC407a0782c92dE3d35B1cF13845D5C6fF"
     },
     batch3: {
-        adminRouter: "0xa7C1138A61c85cDB65929fCb74df2b88dc02208B",
-        commitFactory: CONTRACTS.baseSepolia.commitFactory || "0xc049A4a89f3614a98E4F1295bdC5c39A1566e6d9",
-        distributorProxy: "0xe7A2cC2f4da50054D80Db0E10e34652B9fb2Fb3C",
-        indaRootProxy: CONTRACTS.baseSepolia.indaRoot || "0xE1F2742f86A4b49b34F954c3F96D298dca02eB0C",
-        propertyRegistryProxy: "0x79756a33100428851B6640d1723164D66dd76d1b",
-        router: "0x9F2C85C9c98925b22bCfe41a5332790370b1c867"
+        adminRouter: "0xB81360FF45112a18e9507DAA5349684BB5f99323",
+        commitFactory: CONTRACTS.polygonAmoy.commitFactory,
+        distributorProxy: "0x5039053A4038BE5550b4379c58df7F2FEf23D3A1",
+        indaRootProxy: CONTRACTS.polygonAmoy.indaRoot,
+        propertyRegistryProxy: "0xf316Da735789F90A4BeFE89193a11d76eB9EB99C",
+        router: CONTRACTS.polygonAmoy.router
     },
     batch5: {
-        manager: "0x82C0ba2965d11AA9ebA41E96e7D04BA552068F36",
-        poolDistributor: "0x1a68Df55B5DdE8541146651AE17F757F6CE83462",
-        poolToken: "0x55cFc2E271F5AbA6dD48F0E91F26f5498361383F",
-        poolVault: "0xF60A9d3cc9C49875FD90d1484d11344509db1502"
+        manager: "0x1C00Abc7938251e72b3807e5f5285422a8F660C0",
+        poolDistributor: "0xe74329F258062756c51CB050778cfC67058D53D6",
+        poolToken: "0x07E7a3F6c2ed35ba77e32a1c02edd6c4131C483a",
+        poolVault: "0xA0dFdDf152f28cAaF2585EA642Cfe83102C20D8E"
     },
     countryCode: "CO",
     lastCompletedBatch: 5,
-    network: "unknown",
-    timestamp: 1768399838
+    network: "80002",
+    timestamp: 1771254800
 };
 
 interface ContractsContextType {
