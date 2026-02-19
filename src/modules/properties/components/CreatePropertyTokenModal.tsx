@@ -6,10 +6,10 @@ import { useMarkets } from '@/modules/markets/hooks/useMarkets';
 import { useCountries } from '../hooks/useCountries';
 import { usePropertyTokens } from '../hooks/usePropertyTokens';
 import { Abi, decodeEventLog } from 'viem';
-import { TokenFactoryAbi, ManagerAbi, PropertyRegistryAbi } from '@/config/abis';
+import { TokenFactoryAbi, ManagerAbi, PropertyRegistryAbi, IndahouseRegistryAbi } from '@/config/abis';
 import { CONTRACTS, DEFAULT_CHAIN_ID } from '@/config/contracts';
 import { toast } from 'sonner';
-import { executeAndWaitForTransaction } from '@/utils/blockchain.utils';
+import { createUserPublicClient, createUserWalletClient, executeAndWaitForTransaction } from '@/utils/blockchain.utils';
 
 interface CreatePropertyTokenModalProps {
     isOpen: boolean;
@@ -32,7 +32,7 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
     });
 
     const [isLoading, setIsLoading] = useState(false);
-    const [loadingStep, setLoadingStep] = useState<'creating' | 'confirming' | 'registering_manager' | 'registering_property' | 'saving' | null>(null);
+    const [loadingStep, setLoadingStep] = useState<'certificate' | 'creating' | 'confirming' | 'registering_manager' | 'registering_property' | 'saving' | null>(null);
 
     if (!isOpen) return null;
 
@@ -48,12 +48,65 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
         setIsLoading(true);
 
         try {
+            const networkConfig = CONTRACTS["polygonAmoy"];
+            const chainId = DEFAULT_CHAIN_ID;
+
+            const selectedCountry = countries?.find(c => c.id === formData?.country_id);
+            if (!selectedCountry) {
+                throw new Error('Country not found');
+            }
+            const countryCodeBytes32 = `0x${selectedCountry.code.toUpperCase()
+                .split('')
+                .map(c => c.charCodeAt(0).toString(16))
+                .join('')
+                .padEnd(64, '0')}` as `0x${string}`;
+
+            // Step 0: Ensure admin has a certificate for the token's country (reuse if same country, create if new country)
+            setLoadingStep('certificate');
+            console.log('📋 Verifying certificate for country:', selectedCountry.code);
+            const publicClient = createUserPublicClient(chainId);
+            const walletClient = await createUserWalletClient(chainId);
+            const adminAddress = walletClient.account.address;
+
+            let managerAddress: `0x${string}`;
+            const registryAddress = (networkConfig as { indahouseRegistry?: string }).indahouseRegistry;
+            if (registryAddress) {
+                const managerFromRegistry = await publicClient.readContract({
+                    address: registryAddress as `0x${string}`,
+                    abi: IndahouseRegistryAbi as Abi,
+                    functionName: 'getManager',
+                    args: [countryCodeBytes32],
+                }) as `0x${string}`;
+                const zero = '0x0000000000000000000000000000000000000000' as const;
+                managerAddress = (managerFromRegistry && managerFromRegistry !== zero ? managerFromRegistry : networkConfig.manager) as `0x${string}`;
+            } else {
+                managerAddress = networkConfig.manager as `0x${string}`;
+            }
+
+            const existingCert = await publicClient.readContract({
+                address: managerAddress,
+                abi: ManagerAbi as Abi,
+                functionName: 'userCertificates',
+                args: [adminAddress],
+            }) as `0x${string}`;
+            const zeroAddress = '0x0000000000000000000000000000000000000000';
+            if (!existingCert || existingCert === zeroAddress) {
+                console.log('📋 No certificate for this country. Creating certificate...');
+                await executeAndWaitForTransaction({
+                    contractAddress: managerAddress,
+                    abi: ManagerAbi as Abi,
+                    functionName: 'createCertificate',
+                    args: [adminAddress],
+                    chainId,
+                });
+                console.log('✅ Certificate created for country:', selectedCountry.code);
+            } else {
+                console.log('✅ Certificate already exists for country:', selectedCountry.code, existingCert);
+            }
+
             // Step 1: Create token on blockchain
             setLoadingStep('creating');
             console.log('📝 Creating token on blockchain...');
-
-            const networkConfig = CONTRACTS["polygonAmoy"];
-            const chainId = DEFAULT_CHAIN_ID;
 
             const { hash, receipt } = await executeAndWaitForTransaction({
                 contractAddress: networkConfig.tokenFactory as `0x${string}`,
@@ -99,12 +152,12 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
 
             console.log('🎯 Token created at address:', tokenAddress);
 
-            // Step 2: Register token in Manager
+            // Step 2: Register token in Manager (same Manager as certificate, for this country)
             setLoadingStep('registering_manager');
             console.log('📝 Registering token in Manager...');
 
             const { hash: managerHash } = await executeAndWaitForTransaction({
-                contractAddress: networkConfig?.manager as `0x${string}`,
+                contractAddress: managerAddress,
                 abi: ManagerAbi as Abi,
                 functionName: 'registerIndividualToken',
                 args: [
@@ -120,19 +173,6 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
             // Step 3: Register property in PropertyRegistry
             setLoadingStep('registering_property');
             console.log('📝 Registering property in registry...');
-
-            // Get country code from selected country
-            const selectedCountry = countries?.find(c => c.id === formData?.country_id);
-            if (!selectedCountry) {
-                throw new Error('Country not found');
-            }
-
-            // Convert "CO" -> 0x434f000000...00 (bytes32)
-            const countryCodeBytes32 = `0x${selectedCountry.code.toUpperCase()
-                .split('')
-                .map(c => c.charCodeAt(0).toString(16))
-                .join('')
-                .padEnd(64, '0')}` as `0x${string}`;
 
             const saleStartTimestamp = Math.floor(new Date(formData.sale_start_date).getTime() / 1000);
 
@@ -207,6 +247,7 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
     };
 
     const getLoadingMessage = () => {
+        if (loadingStep === 'certificate') return 'Verificando certificado del país...';
         if (loadingStep === 'creating') return 'Creating token on blockchain...';
         if (loadingStep === 'confirming') return 'Confirming transaction...';
         if (loadingStep === 'registering_manager') return 'Registering in Manager...';

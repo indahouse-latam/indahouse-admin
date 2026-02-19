@@ -47,7 +47,6 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
         token_address: '',
         min_cap: '100',
         max_cap: '500',
-        price_per_token: '1',
         start_time: new Date().toISOString().slice(0, 16),
         commit_deadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
         execute_after: new Date(Date.now() + 31 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
@@ -272,7 +271,6 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
                     start_time: formData.start_time,
                     commit_deadline: formData.commit_deadline,
                     execute_after: formData.execute_after,
-                    price_per_token: formData.price_per_token,
                     fee_tiers: feeTiers.map(t => ({
                         ...t,
                         deadline_timestamp: new Date(t.deadline_timestamp).toISOString()
@@ -315,7 +313,6 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
                 token_address: '',
                 min_cap: '100',
                 max_cap: '500',
-                price_per_token: '1',
                 start_time: new Date().toISOString().slice(0, 16),
                 commit_deadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
                 execute_after: new Date(Date.now() + 31 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
@@ -532,20 +529,6 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
                                         className="w-full bg-secondary/20 border border-border rounded-lg pl-10 pr-4 py-2 text-sm"
                                         value={formData.max_cap}
                                         onChange={(e) => setFormData({ ...formData, max_cap: e.target.value })}
-                                    />
-                                </div>
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-bold uppercase text-muted-foreground">Precio / Token (USDC)</label>
-                                <div className="relative">
-                                    <DollarSign className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                                    <input
-                                        type="number"
-                                        required
-                                        step="0.01"
-                                        className="w-full bg-secondary/20 border border-border rounded-lg pl-10 pr-4 py-2 text-sm"
-                                        value={formData.price_per_token}
-                                        onChange={(e) => setFormData({ ...formData, price_per_token: e.target.value })}
                                     />
                                 </div>
                             </div>

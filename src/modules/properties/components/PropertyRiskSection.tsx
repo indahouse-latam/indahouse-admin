@@ -10,7 +10,7 @@ interface PropertyRiskSectionProps {
 
 const STRATEGY_LABELS: Record<string, string> = {
   yield_optimizer: 'Optimizador de rendimiento',
-  value_add_hold: 'Value Add & Hold',
+  value_add_hold: 'Fix & Hold',
   exclusive_build: 'Construccion exclusiva',
   income_balanced: 'Ingreso balanceado',
   capital_preservation: 'Preservacion de capital',

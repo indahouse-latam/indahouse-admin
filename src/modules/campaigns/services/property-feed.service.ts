@@ -102,4 +102,33 @@ export class PropertyFeedService {
       body: JSON.stringify({ mediaOrder })
     });
   }
+
+  /**
+   * Sube documentos de propiedad (legales o financieros) a property_file.
+   * POST /properties/:propertyId/documentation con type=document | financial
+   */
+  static async uploadPropertyDocuments(
+    propertyId: string,
+    files: File[],
+    type: 'document' | 'financial' = 'document'
+  ): Promise<{ uploaded: unknown[]; corrupted: unknown[] }> {
+    const formData = new FormData();
+    files.forEach((file) => formData.append('files', file));
+    formData.append('type', type);
+
+    const response = await fetchApi<{
+      data?: { uploaded?: unknown[]; corrupted?: unknown[] };
+      uploaded?: unknown[];
+      corrupted?: unknown[];
+    }>(`/properties/${propertyId}/documentation`, {
+      method: 'POST',
+      body: formData
+    });
+
+    const data = response?.data ?? response;
+    return {
+      uploaded: data?.uploaded ?? [],
+      corrupted: data?.corrupted ?? []
+    };
+  }
 }

@@ -28,7 +28,7 @@ export interface Property {
   valuation: number | string;
   property_type: number;
   propertyType?: number;
-  stratum: number;
+  stratum: number | null;
   built_time: number;
   builtTime?: number;
   buyback_time?: number;
@@ -55,7 +55,7 @@ interface UpdatePropertyPayload {
   price: number;
   valuation: number;
   property_type: number;
-  stratum: number;
+  stratum: number | null;
   built_time: number;
   buyback_time?: number;
   status: string;

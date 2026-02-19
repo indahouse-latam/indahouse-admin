@@ -4,6 +4,7 @@ import { Building2, Plus, Loader2 } from 'lucide-react';
 import { usePropertyFeed, usePropertyFeedSections } from '../hooks/usePropertyFeed';
 import { usePropertyFeedEditor } from '../hooks/usePropertyFeedEditor';
 import { SectionEditor } from './SectionEditor';
+import { FinancialDocumentsSection } from './FinancialDocumentsSection';
 
 interface PropertyMultimediaSectionProps {
   propertyId: string | null;
@@ -59,6 +60,9 @@ export function PropertyMultimediaSection({
 
   return (
     <div className="space-y-6">
+      {/* Documentos financieros (property_file, resource_type=2) */}
+      <FinancialDocumentsSection propertyId={propertyId} />
+
       {existingSections.length === 0 && availableSections.length === 0 && (
         <div className="text-center py-12 text-muted-foreground">
           <Building2 className="w-16 h-16 mx-auto mb-4 opacity-50" />

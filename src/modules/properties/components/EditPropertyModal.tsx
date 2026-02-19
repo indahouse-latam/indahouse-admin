@@ -31,6 +31,7 @@ export function EditPropertyModal({ isOpen, onClose, property }: EditPropertyMod
         roi: '',
         property_type: '1',
         stratum: '4',
+        stratumNoAplica: false,
         built_time: '1',
         buyback_time: '12',
         status: 'VERIFIED' as 'VERIFIED' | 'CREATED' | 'PENDING' | 'IN_PROGRESS' | 'DENIED' | 'BOUGHT' | 'BLOCKED',
@@ -63,7 +64,8 @@ export function EditPropertyModal({ isOpen, onClose, property }: EditPropertyMod
                 valuation: typeof property.valuation === 'string' ? property.valuation : property.valuation?.toString() || '',
                 roi: typeof property.roi === 'string' ? property.roi : property.roi?.toString() || '',
                 property_type: propType.toString(),
-                stratum: property.stratum?.toString() || '4',
+                stratum: property.stratum != null ? property.stratum.toString() : '4',
+                stratumNoAplica: property.stratum == null,
                 built_time: builtTime.toString(),
                 buyback_time: buybackTime?.toString() || '12',
                 status: property.status || 'VERIFIED',
@@ -107,7 +109,7 @@ export function EditPropertyModal({ isOpen, onClose, property }: EditPropertyMod
             valuation: Number.parseFloat(formData.valuation),
             roi: formData.roi ? Number.parseFloat(formData.roi) : undefined,
             property_type: Number.parseInt(formData.property_type),
-            stratum: Number.parseInt(formData.stratum),
+            ...(formData.stratumNoAplica ? { stratum: null } : { stratum: Number.parseInt(formData.stratum) }),
             built_time: Number.parseInt(formData.built_time.toString()),
             buyback_time: formData.buyback_time ? Number.parseInt(formData.buyback_time.toString()) : undefined,
             status: formData.status,
@@ -378,14 +380,24 @@ export function EditPropertyModal({ isOpen, onClose, property }: EditPropertyMod
                                     <div className="space-y-2">
                                         <label className="text-[10px] font-bold uppercase text-muted-foreground">Estrato</label>
                                         <select
-                                            className="w-full bg-secondary-100 border border-secondary-300 rounded-lg px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                                            className="w-full bg-secondary-100 border border-secondary-300 rounded-lg px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:opacity-60 disabled:cursor-not-allowed"
                                             value={formData.stratum}
                                             onChange={(e) => setFormData({ ...formData, stratum: e.target.value })}
+                                            disabled={formData.stratumNoAplica}
                                         >
                                             {PROPERTY_STRATA.map((stratum) => (
                                                 <option key={stratum} value={stratum}>Estrato {stratum}</option>
                                             ))}
                                         </select>
+                                        <label className="flex items-center gap-2 cursor-pointer text-sm text-muted-foreground">
+                                            <input
+                                                type="checkbox"
+                                                checked={formData.stratumNoAplica}
+                                                onChange={(e) => setFormData({ ...formData, stratumNoAplica: e.target.checked })}
+                                                className="rounded border-secondary-300 text-primary focus:ring-primary-500"
+                                            />
+                                            No aplica
+                                        </label>
                                     </div>
                                 </div>
                             </div>
