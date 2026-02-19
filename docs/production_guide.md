@@ -103,34 +103,50 @@ IndahouseRegistry (Central Router Registry)
 - All operations need consistent logging for accounting
 - Simplifies frontend integration (one contract to interact with)
 
-### 2.3 Key Roles (OpenZeppelin AccessControl)
+### 2.3 Key Roles (AccessControl)
 
-All core contracts use OpenZeppelin's `AccessControlDefaultAdminRules` pattern, providing:
-- **2-step admin transfer**: New admin must accept before transfer completes
-- **Time delay**: Configurable delay (3 days production) for admin changes
-- **Role-based access**: Granular permissions with explicit role checks
+All core contracts follow a professional AccessControl system with distinct administrative patterns:
 
-| Role | Purpose | Who Has It |
-|------|---------|------------|
-| `DEFAULT_ADMIN_ROLE` | Full system control, 2-step transfer | Multisig Safe |
-| `GOVERNANCE_ROLE` | Property buyout execution | PropertyGovernor contracts |
-| `PROPERTIES_MANAGER_ROLE` | Register/retire properties | Admin, IndaRoot, TransactionRouter |
-| `USER_MANAGER_ROLE` | Whitelist management | Admin (backend) |
-| `MINTER_ROLE` | Mint tokens during campaigns | IndaRoot |
-| `OPERATOR_ROLE` | Manager operations | Admin |
-| `PRICE_MANAGER_ROLE` | Update token prices | Price feed services |
+#### 1. 2-Step Admin Pattern (`AccessControlDefaultAdminRules`)
+Used by `TransactionRouter`, `IndahouseRegistry`, `IndaAdminRouter`, and `CommitFactory`.
+- **Inheritance**: Inherits directly from OpenZeppelin's `AccessControlDefaultAdminRules`.
+- **Security**: The `DEFAULT_ADMIN_ROLE` **cannot** be granted via `grantRole`. You must use `beginDefaultAdminTransfer` followed by `acceptDefaultAdminTransfer`.
+- **Delay**: Includes a mandatory transfer delay (e.g., 3 days in production) to prevent rapid malicious takeovers.
 
-#### Contracts Using AccessControlDefaultAdminRules
+#### 2. Vanilla AccessControl Pattern (`AccessControl`)
+Used by `IndaRoot`, `PropertyRegistry`, and `Manager`.
+- **Inheritance**: Inherits from `AccessControl` or `AccessControlUpgradeable`.
+- **Security**: Roles (including `DEFAULT_ADMIN_ROLE`) are managed via `grantRole` and `revokeRole`.
 
-| Contract | Admin Transfer Delay | Purpose |
-|----------|---------------------|----------|
-| `TransactionRouter` | 3 days (prod) | User operation handling |
-| `IndahouseRegistry` | 3 days (prod) | Contract discovery |
-| `IndaAdminRouter` | 3 days (prod) | Admin operations |
-| `CommitFactory` | 3 days (prod) | Campaign creation |
-| `Manager` | Custom 2-step* | Per-country operations |
+| Role | Hash | Purpose | Who Has It |
+|------|------|---------|------------|
+| `DEFAULT_ADMIN_ROLE` | `0x00...00` | Full system control | Multisig Safe |
+| `PROPERTIES_MANAGER_ROLE` | `0x5caba2aa...` | Register/retire properties | Admin, TransactionRouter |
+| `USERS_MANAGER_ROLE` | `0x2e666a20...` | Whitelist & Loyalty mgmt | Admin (backend) |
+| `CERTIFICATE_MANAGER_ROLE` | `0x793fafc4...` | Create CMDs / Mint NFTs | Admin, Relayer |
+| `MINTER_ROLE` | `0x9f2df0fe...` | Mint tokens / CMD NFTs | IndaRoot, PropertyRegistry |
+| `GOVERNANCE_ROLE` | `0x71840dc4...` | Property buyout execution | PropertyGovernor contracts |
+| `PAUSER_ROLE` | `0x65d30003...` | Global / Token pause | Admin |
 
-*Manager uses `AccessControlUpgradeable` with custom 2-step pattern for clone compatibility.
+#### Role Administration Hierarchy
+
+To promote security through delegation, certain roles have dedicated "Role Admins". This allows specific teams (like Backend Ops) to manage sub-permissions without being global administrators.
+
+- **`OPERATOR_ROLE`** is the admin for:
+    - **`CERTIFICATE_MANAGER_ROLE`**: Holders of the Operator role can grant or revoke the ability to create CMDs and mint NFTs.
+
+### 2.4 Managing Roles (How-To)
+
+To delegate CMD creation to a relayer or a specific backend service, an **Operator** or **Admin** must grant the role:
+
+```bash
+CERTIFICATE_MANAGER_ROLE="0x793fafc4216e31eb47b95467a5d6c852611bb7e4df768602288844840c234392"
+
+# A holder of OPERATOR_ROLE or DEFAULT_ADMIN_ROLE can run:
+cast send $MANAGER_CO "grantRole(bytes32,address)" $CERTIFICATE_MANAGER_ROLE $RELAYER_ADDRESS --private-key $OPERATOR_KEY
+```
+
+---
 
 ---
 
@@ -160,22 +176,23 @@ All core contracts use OpenZeppelin's `AccessControlDefaultAdminRules` pattern, 
 # Post-deployment: Begin admin transfer to Safe (AccessControl pattern)
 # For each critical contract:
 
-# 1. Begin transfer (starts 3-day delay in production)
-cast send $INDA_ADMIN_ROUTER "beginDefaultAdminTransfer(address)" $SAFE_ADDRESS --private-key $DEPLOYER_KEY
-cast send $TRANSACTION_ROUTER "beginDefaultAdminTransfer(address)" $SAFE_ADDRESS --private-key $DEPLOYER_KEY
+# 1. AccessControlDefaultAdminRules Contracts (Router, Registry, Factory)
+# MUST use 2-step transfer. Direct grantRole(DEFAULT_ADMIN_ROLE) will REVERT.
+
+# Step A: Begin transfer (starts delay)
 cast send $REGISTRY "beginDefaultAdminTransfer(address)" $SAFE_ADDRESS --private-key $DEPLOYER_KEY
-cast send $COMMIT_FACTORY "beginDefaultAdminTransfer(address)" $SAFE_ADDRESS --private-key $DEPLOYER_KEY
 
-# 2. After delay, Safe accepts admin role
-cast send $INDA_ADMIN_ROUTER "acceptDefaultAdminTransfer()" --private-key $SAFE_KEY
-cast send $TRANSACTION_ROUTER "acceptDefaultAdminTransfer()" --private-key $SAFE_KEY
+# Step B: Accept transfer (from Safe, after delay)
 cast send $REGISTRY "acceptDefaultAdminTransfer()" --private-key $SAFE_KEY
-cast send $COMMIT_FACTORY "acceptDefaultAdminTransfer()" --private-key $SAFE_KEY
 
-# 3. For contracts using vanilla AccessControl (IndaRoot, etc.):
+# -------------------------------------------------------------------------
+
+# 2. Vanilla AccessControl Contracts (IndaRoot, Manager, PropertyRegistry)
+# Uses direct grant/revoke for the admin role.
+
 DEFAULT_ADMIN_ROLE="0x0000000000000000000000000000000000000000000000000000000000000000"
-cast send $INDA_ROOT "grantRole(bytes32,address)" $DEFAULT_ADMIN_ROLE $SAFE_ADDRESS
-cast send $INDA_ROOT "revokeRole(bytes32,address)" $DEFAULT_ADMIN_ROLE $DEPLOYER_ADDRESS
+cast send $INDA_ROOT "grantRole(bytes32,address)" $DEFAULT_ADMIN_ROLE $SAFE_ADDRESS --private-key $DEPLOYER_KEY
+cast send $INDA_ROOT "revokeRole(bytes32,address)" $DEFAULT_ADMIN_ROLE $DEPLOYER_ADDRESS --private-key $SAFE_KEY
 ```
 
 ### 3.2 Admin Transfer Functions Reference
@@ -370,7 +387,7 @@ PROPERTIES_MANAGER_ROLE="0x5caba2aa072f9476eef4eba05f22235aef4612b73d339428b33d9
 MINTER_ROLE="0x9f2df0fed2c77648de5860a4cc508cd0818c85b8b8a1ab4ceeef8d981c8956a6"
 NFT_PROP_MANAGER_ROLE="0x32434a10a120a3093796cdca62629674c098d21f8d44da14916ca1fc0fa6963f"
 
-# 5.1 Admin can register properties
+# 5.1 Admin can register properties in Registry
 cast send $PROPERTY_REGISTRY 'grantRole(bytes32,address)' $PROPERTIES_MANAGER_ROLE $ADMIN_ADDRESS
 
 # 5.2 Admin can manage properties on IndaRoot
@@ -441,11 +458,11 @@ This section covers the **complete user journey** from signup to first investmen
 **Why needed**: Only addresses with this role can call `_setToWhitelist`.
 
 ```bash
-USER_MANAGER_ROLE="0x5ebedfa6104e4963a67c17c9b73e50a627c5307e1a07c68dd391bb0e4fc974d3"
+USERS_MANAGER_ROLE="0x2e666a203994d5b24467ec62f92f808796841d65457a41907cb573df261df9e2"
 
 cast send $INDA_ROOT \
   'grantRole(bytes32,address)' \
-  $USER_MANAGER_ROLE \
+  $USERS_MANAGER_ROLE \
   $ADMIN_ADDRESS \
   --private-key $ADMIN_KEY
 ```
@@ -476,7 +493,41 @@ cast send $INDA_ROOT \
   --private-key $ADMIN_KEY
 ```
 
----
+#### 6.3.1 Whitelist Enforcement Points
+
+Whitelist is enforced at multiple levels to ensure full compliance:
+
+| Contract | Function | Who is Checked |
+|----------|----------|----------------|
+| **CommitCampaign** | `commit()` | `msg.sender` (investor) |
+| **TransactionRouter** | `executeP2PTransfer()` | sender + recipient |
+| **TransactionRouter** | `executeP2PSale()` | buyer + seller |
+| **TransactionRouter** | `executeMarketplaceSale()` | buyer + seller |
+| **TransactionRouter** | `executeDirectPurchase()` | `data.userEOA` |
+| **TransactionRouter** | `executePropertyBuyout()` | `data.buyerEOA` |
+| **TransactionRouter** | `executeRedeemBuyoutTokens()` | `msg.sender` |
+| **TransactionRouter** | `executeSellTokensToVault()` | `msg.sender` |
+| **TransactionRouter** | `executeRentClaim()` | `msg.sender` |
+| **TransactionRouter** | `redeemPoolTokensForUsdc()` | `msg.sender` |
+| **IndaRoot** | `buyINDHWithBase()` | `msg.sender` (via `onlyWhitelisted`) |
+| **IndaRoot** | `subscribe()` | `msg.sender` (via `onlyWhitelisted`) |
+| **Indh (ERC20)** | `_update()` | sender + recipient (only during `buyoutMode`) |
+
+**Error**: Non-whitelisted users receive `UserNotWhitelisted()` or `UserNotWhitelisted(address)`.
+
+#### 6.3.2 Required Deployment Step: Link IndaRoot to TransactionRouter
+
+The TransactionRouter must know the IndaRoot address to query the whitelist. This is done during deployment (Batch 4) or manually:
+
+```bash
+cast send $TRANSACTION_ROUTER \
+  'setIndaRoot(address)' \
+  $INDA_ROOT \
+  --private-key $ADMIN_KEY
+```
+
+> **⚠️ IMPORTANT**: If this step is skipped, ALL TransactionRouter user functions will revert because the `onlyWhitelisted` modifier cannot query the whitelist.
+
 
 ### 6.4 Create CMD (Membership Certificate)
 
@@ -571,9 +622,27 @@ cast send $USER_ADDRESS \
 
 ---
 
-## 7. Campaign Operations
+## 7. Campaign Finalization & Distribution (DOS-Safe)
 
-Campaigns are **crowdfunding rounds** for new properties.
+**⚠️ CRITICAL**: For production, always use the **Batched** finalization flow via `IndaAdminRouter`. Processing all investors in a single transaction will exceed gas limits on large campaigns and is vulnerable to DoS attacks.
+
+### Protocol Steps:
+
+1.  **Fund Approval**: The campaign owner or an operator must call `approveFunds` on the `CommitCampaign` contract.
+    *   This sets the ERC20 allowance for `IndaAdminRouter`.
+2.  **Batched Finalization**: Call `IndaAdminRouter.finalizeAndDistributeCampaignBatched`.
+    *   **Role**: Requires `OPERATOR_ROLE`.
+    *   **Parameters**: `start` and `count` (indices of investors to process).
+    *   **Recommended Batch Size**: 50-100 (depending on network gas limits).
+
+### Recommended Script Usage:
+Use `complete_campaign_flow_v2.sh` which implements the automatic batching loop:
+```bash
+./complete_campaign_flow_v2.sh --step 18-19
+```
+
+> [!NOTE]
+> The legacy `finalizeAndExecute` and `claim` functions in `CommitCampaign.sol` are deprecated and scheduled for removal as they do not support the batched distribution to user CMDs.
 
 ### 7.1 Business Flow
 
@@ -1168,6 +1237,27 @@ query UserStatement($user: Bytes!, $start: BigInt!, $end: BigInt!) {
 | 7 | Venta P2P | P2P Sale | Proceeds |
 | 8 | Venta Marketplace | Marketplace Sale | Proceeds |
 | 9 | Compra Marketplace | Marketplace Purchase | Credit |
+
+---
+
+## 13. Troubleshooting Common Errors
+
+### 13.1 `AccessControlEnforcedDefaultAdminRules()`
+**Cause**: Attempting to use `grantRole` for the `DEFAULT_ADMIN_ROLE` (0x0...0) on a contract that enforces 2-step transfer rules.
+**Fix**: Use `beginDefaultAdminTransfer(newAdmin)` followed by `acceptDefaultAdminTransfer()`.
+
+### 13.2 `AccessControlEnforcedDefaultAdminDelay(uint48 schedule)`
+**Cause**: Attempting to call `acceptDefaultAdminTransfer()` before the mandatory security delay has passed.
+**Details**: The `schedule` value is the Unix timestamp when the transfer becomes acceptable.
+**Fix**: Wait until the delay period (e.g., 48 hours or 3 days) has elapsed. You can convert the `schedule` timestamp to human-readable time to know exactly when to try again.
+
+### 13.3 `Invalid Selector / Contract Reverted`
+**Cause**: The script is calling a function that doesn't exist at the given address. This usually happens when an old contract address (deployed before the AccessControl migration) is hardcoded in scripts or environment variables.
+**Fix**: Verify the address in `IndahouseRegistry` and `TransactionRouter`. Perform a full redeployment and update all addresses in `.env` and `complete_campaign_flow.sh`.
+
+### 13.3 `AccessControlUnauthorizedAccount(account, role)`
+**Cause**: The sender does not have the required role to execute the function.
+**Fix**: Check `hasRole(role, account)` via `cast call`. If false, the admin must grant the role using the correct hash (e.g., `USERS_MANAGER_ROLE` for whitelist actions).
 
 ---
 
