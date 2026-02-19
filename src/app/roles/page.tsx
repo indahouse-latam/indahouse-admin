@@ -38,6 +38,7 @@ const ROLE_HASHES = {
     USER_MANAGER_ROLE: '0x5ebedfa6104e4963a67c17c9b73e50a627c5307e1a07c68dd391bb0e4fc974d3' as `0x${string}`,
     GOVERNANCE_ROLE: '0x71840dc4906352362b0cdaf79870196c8e42acafade72d5d5a6d59291253ceb1' as `0x${string}`,
     OPERATOR_ROLE: '0x97667070c54ef182b0f5858b034beac1b6f3089aa2d3188bb1e8929f4fa9b929' as `0x${string}`,
+    CERTIFICATE_MANAGER_ROLE: '0x793fafc4216e31eb47b95467a5d6c852611bb7e4df768602288844840c234392' as `0x${string}`,
 };
 
 type RoleStatus = 'unchecked' | 'checking' | 'granted' | 'not_granted' | 'error';
@@ -211,6 +212,16 @@ export default function RolesPage() {
             label: 'Operator (Manager)',
             description: 'Permisos de operador en el contract Manager',
             roleHash: ROLE_HASHES.OPERATOR_ROLE,
+            contractKey: 'manager',
+            status: 'unchecked',
+            grantStatus: 'idle',
+            selected: false,
+        },
+        {
+            id: 'certificate_manager',
+            label: 'Certificate Manager (Manager)',
+            description: 'Crear CMDs y mint de NFTs de certificados',
+            roleHash: ROLE_HASHES.CERTIFICATE_MANAGER_ROLE,
             contractKey: 'manager',
             status: 'unchecked',
             grantStatus: 'idle',

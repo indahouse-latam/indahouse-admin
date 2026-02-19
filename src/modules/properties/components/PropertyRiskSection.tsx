@@ -5,25 +5,41 @@ import { Loader2, ShieldAlert, Trash2 } from 'lucide-react';
 import { usePropertyRisk, RISK_OPTIONS, RiskType } from '../hooks/usePropertyRisk';
 
 interface PropertyRiskSectionProps {
-  propertyId: string | null;
+  readonly propertyId: string | null;
 }
 
 const STRATEGY_LABELS: Record<string, string> = {
-  yield_optimizer: 'Optimizador de rendimiento',
-  value_add_hold: 'Value Add & Hold',
-  exclusive_build: 'Construccion exclusiva',
-  income_balanced: 'Ingreso balanceado',
-  capital_preservation: 'Preservacion de capital',
-  growth_focused: 'Enfocado en crecimiento',
+  institutional_hard_asset: 'Institutional Hard Asset',
+  exclusive_build: 'Exclusive Build',
+  yield_optimizer: 'Yield Optimizer',
+  pre_completion_value: 'Pre-Completion Value',
+  value_add_hold: 'Value Add Hold',
+  institutional_bundling: 'Institutional Bundling',
 };
 
 const GOAL_LABELS: Record<string, string> = {
-  monthly_income: 'Ingreso mensual',
-  operational_growth: 'Crecimiento operacional',
+  appreciation_prestige: 'Apreciacion y prestigio',
   gross_appreciation: 'Apreciacion bruta',
-  capital_growth: 'Crecimiento de capital',
-  passive_income: 'Ingreso pasivo',
+  monthly_income: 'Ingreso mensual',
+  arbitrage_liquidity: 'Arbitraje y liquidez',
+  operational_growth: 'Crecimiento operacional',
+  institutional_exit: 'Salida institucional',
 };
+
+const STRATEGY_FOR_RISK: Record<RiskType, string> = {
+  conservative: 'institutional_hard_asset',
+  venture: 'exclusive_build',
+  balanced: 'yield_optimizer',
+  moderate_short: 'pre_completion_value',
+  moderate: 'value_add_hold',
+  balanced_long: 'institutional_bundling',
+};
+
+function getRiskOptionLabel(riskValue: RiskType): string {
+  const riskLabel = RISK_OPTIONS.find((option) => option.value === riskValue)?.label || riskValue;
+  const strategyLabel = STRATEGY_LABELS[STRATEGY_FOR_RISK[riskValue]] || STRATEGY_FOR_RISK[riskValue];
+  return `${strategyLabel} - ${riskLabel}`;
+}
 
 export function PropertyRiskSection({ propertyId }: PropertyRiskSectionProps) {
   const { risk, isLoading, createRisk, isCreating, updateRisk, isUpdating, deleteRisk, isDeleting } = usePropertyRisk(propertyId);
@@ -55,14 +71,16 @@ export function PropertyRiskSection({ propertyId }: PropertyRiskSectionProps) {
           Crear Perfil de Riesgo
         </h4>
         <div className="space-y-2">
-          <label className="text-[10px] font-bold uppercase text-muted-foreground">Tipo de Riesgo</label>
+          <label htmlFor="create-risk-select" className="text-[10px] font-bold uppercase text-muted-foreground">Tipo de Riesgo</label>
           <select
+            id="create-risk-select"
+            title="Seleccionar tipo de riesgo"
             className="w-full bg-secondary-100 border border-secondary-300 rounded-lg px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
             value={selectedRisk}
             onChange={(e) => setSelectedRisk(e.target.value as RiskType)}
           >
             {RISK_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
+              <option key={opt.value} value={opt.value}>{getRiskOptionLabel(opt.value)}</option>
             ))}
           </select>
         </div>
@@ -102,14 +120,16 @@ export function PropertyRiskSection({ propertyId }: PropertyRiskSectionProps) {
       </div>
 
       <div className="space-y-2">
-        <label className="text-[10px] font-bold uppercase text-muted-foreground">Cambiar Tipo de Riesgo</label>
+        <label htmlFor="update-risk-select" className="text-[10px] font-bold uppercase text-muted-foreground">Cambiar Tipo de Riesgo</label>
         <select
+          id="update-risk-select"
+          title="Cambiar tipo de riesgo"
           className="w-full bg-secondary-100 border border-secondary-300 rounded-lg px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
           value={selectedRisk}
           onChange={(e) => setSelectedRisk(e.target.value as RiskType)}
         >
           {RISK_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
+            <option key={opt.value} value={opt.value}>{getRiskOptionLabel(opt.value)}</option>
           ))}
         </select>
       </div>
