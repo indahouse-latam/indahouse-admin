@@ -13,7 +13,7 @@ const STRATEGY_LABELS: Record<string, string> = {
   exclusive_build: 'Exclusive Build',
   yield_optimizer: 'Yield Optimizer',
   pre_completion_value: 'Pre-Completion Value',
-  value_add_hold: 'Value Add Hold',
+  value_add_hold: 'Fix & Hold',
   institutional_bundling: 'Institutional Bundling',
 };
 
