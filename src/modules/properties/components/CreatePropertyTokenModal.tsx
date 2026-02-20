@@ -61,9 +61,9 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
                 .join('')
                 .padEnd(64, '0')}` as `0x${string}`;
 
-            // Step 0: Ensure admin has a certificate for the token's country (reuse if same country, create if new country)
+            // Step 0: Ensure admin has a manager certificate for the token's country (reuse if same country, create if new country)
             setLoadingStep('certificate');
-            console.log('📋 Verifying certificate for country:', selectedCountry.code);
+            console.log('📋 Verifying manager certificate for country:', selectedCountry.code);
             const publicClient = createUserPublicClient(chainId);
             const walletClient = await createUserWalletClient(chainId);
             const adminAddress = walletClient.account.address;
@@ -91,7 +91,7 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
             }) as `0x${string}`;
             const zeroAddress = '0x0000000000000000000000000000000000000000';
             if (!existingCert || existingCert === zeroAddress) {
-                console.log('📋 No certificate for this country. Creating certificate...');
+                console.log('📋 No manager certificate for this country. Creating manager certificate...');
                 await executeAndWaitForTransaction({
                     contractAddress: managerAddress,
                     abi: ManagerAbi as Abi,
@@ -99,9 +99,9 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
                     args: [adminAddress],
                     chainId,
                 });
-                console.log('✅ Certificate created for country:', selectedCountry.code);
+                console.log('✅ Manager certificate created for country:', selectedCountry.code);
             } else {
-                console.log('✅ Certificate already exists for country:', selectedCountry.code, existingCert);
+                console.log('✅ Manager certificate already exists for country:', selectedCountry.code, existingCert);
             }
 
             // Step 1: Create token on blockchain
