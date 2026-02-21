@@ -206,7 +206,8 @@ export function MediaGalleryManager({
   };
 
   const handleFilesDrop = (files: File[]) => {
-    const MAX_SIZE = 10 * 1024 * 1024; // 10MB
+    const MAX_SIZE_DEFAULT = 10 * 1024 * 1024; // 10MB
+    const MAX_SIZE_VIDEO = 30 * 1024 * 1024; // 30MB
     const validFiles: File[] = [];
     const invalidFiles: string[] = [];
 
@@ -214,16 +215,17 @@ export function MediaGalleryManager({
     const filesToProcess = (mediaType === 'PDF' || mediaType === 'DOCUMENT') ? files.slice(0, 1) : files;
 
     filesToProcess.forEach(file => {
-      // Validar tamaño
-      if (file.size > MAX_SIZE) {
-        invalidFiles.push(`${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB - máximo 10MB)`);
-        return;
-      }
-
-      // Validar tipo de archivo según mediaType
       const isPDF = file.type === 'application/pdf';
       const isImage = file.type.startsWith('image/');
       const isVideo = file.type.startsWith('video/');
+      const allowedMaxSize = isVideo ? MAX_SIZE_VIDEO : MAX_SIZE_DEFAULT;
+      const maxSizeLabel = isVideo ? '30MB' : '10MB';
+
+      // Validar tamaño
+      if (file.size > allowedMaxSize) {
+        invalidFiles.push(`${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB - máximo ${maxSizeLabel})`);
+        return;
+      }
 
       if (mediaType === 'PDF' || mediaType === 'DOCUMENT') {
         if (!isPDF) {
@@ -331,8 +333,13 @@ export function MediaGalleryManager({
   const getFileTypeDescription = () => {
     if (mediaType === 'PDF' || mediaType === 'DOCUMENT') return "(.pdf - máx 10MB)";
     if (mediaType === 'IMAGE') return "(.jpg, .png - máx 10MB)";
-    if (mediaType === 'VIDEO') return "(.mp4 - máx 10MB)";
-    return "(.jpg, .png, .mp4 - máx 10MB)";
+    if (mediaType === 'VIDEO') return "(.mp4 - máx 30MB)";
+    return "(.jpg, .png máx 10MB | .mp4 máx 30MB)";
+  };
+
+  const getMaxUploadSize = () => {
+    if (mediaType === 'VIDEO' || !mediaType) return 30 * 1024 * 1024;
+    return 10 * 1024 * 1024;
   };
 
   return (
@@ -342,7 +349,7 @@ export function MediaGalleryManager({
           title={getUploadTitle()}
           onFilesDrop={handleFilesDrop}
           accept={getAcceptedFileTypes()}
-          maxSize={10485760}
+          maxSize={getMaxUploadSize()}
           fileTypeDescription={getFileTypeDescription()}
         />
       )}
