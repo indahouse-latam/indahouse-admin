@@ -161,7 +161,7 @@ export function MediaGalleryManager({
   onReorder,
   isUploading,
   isDeleting,
-  mediaType = 'IMAGE'
+  mediaType
 }: MediaGalleryManagerProps) {
   const [localMedia, setLocalMedia] = useState(media);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
@@ -240,6 +240,11 @@ export function MediaGalleryManager({
           invalidFiles.push(`${file.name} - Solo se permiten videos en esta sección`);
           return;
         }
+      } else if (!mediaType) {
+        if (!isImage && !isVideo) {
+          invalidFiles.push(`${file.name} - Solo se permiten imágenes o videos en esta sección`);
+          return;
+        }
       }
 
       validFiles.push(file);
@@ -258,17 +263,16 @@ export function MediaGalleryManager({
       }
 
       // Para imágenes y videos, subir directamente
-      let detectedMediaType: MediaType = mediaType;
+      let detectedMediaType: MediaType = 'IMAGE';
 
-      if (!mediaType || mediaType === 'IMAGE') {
+      if (!mediaType) {
         const firstFile = validFiles[0];
-        if (firstFile.type === 'application/pdf') {
-          detectedMediaType = 'PDF';
-        } else if (firstFile.type.startsWith('video/')) {
-          detectedMediaType = 'VIDEO';
-        } else {
-          detectedMediaType = 'IMAGE';
-        }
+        detectedMediaType = firstFile.type.startsWith('video/') ? 'VIDEO' : 'IMAGE';
+      } else if (mediaType === 'IMAGE') {
+        const firstFile = validFiles[0];
+        detectedMediaType = firstFile.type.startsWith('video/') ? 'VIDEO' : 'IMAGE';
+      } else {
+        detectedMediaType = mediaType;
       }
 
       onUpload(validFiles, detectedMediaType);
@@ -282,7 +286,7 @@ export function MediaGalleryManager({
     }
 
     if (pendingFiles.length > 0) {
-      onUpload(pendingFiles, mediaType, documentName.trim());
+      onUpload(pendingFiles, mediaType ?? 'DOCUMENT', documentName.trim());
       setPendingFiles([]);
       setDocumentName('');
     }
@@ -293,7 +297,7 @@ export function MediaGalleryManager({
     setDocumentName('');
   };
 
-  const getAcceptedFileTypes = () => {
+  const getAcceptedFileTypes = (): Record<string, string[]> => {
     if (mediaType === 'PDF' || mediaType === 'DOCUMENT') {
       return {
         'application/pdf': ['.pdf']
@@ -309,11 +313,10 @@ export function MediaGalleryManager({
         'video/mp4': ['.mp4']
       };
     }
-    // Por defecto, aceptar imágenes, videos y PDFs
+    // Por defecto (ej. portada), aceptar imágenes y videos
     return {
       'image/*': ['.jpeg', '.jpg', '.png'],
-      'video/mp4': ['.mp4'],
-      'application/pdf': ['.pdf']
+      'video/mp4': ['.mp4']
     };
   };
 
@@ -322,14 +325,14 @@ export function MediaGalleryManager({
     if (mediaType === 'PDF' || mediaType === 'DOCUMENT') return "Arrastra archivos PDF aquí";
     if (mediaType === 'IMAGE') return "Arrastra imágenes aquí";
     if (mediaType === 'VIDEO') return "Arrastra videos aquí";
-    return "Arrastra imágenes, videos o PDFs aquí";
+    return "Arrastra imágenes o videos aquí";
   };
 
   const getFileTypeDescription = () => {
     if (mediaType === 'PDF' || mediaType === 'DOCUMENT') return "(.pdf - máx 10MB)";
     if (mediaType === 'IMAGE') return "(.jpg, .png - máx 10MB)";
     if (mediaType === 'VIDEO') return "(.mp4 - máx 10MB)";
-    return "(.jpg, .png, .mp4, .pdf - máx 10MB)";
+    return "(.jpg, .png, .mp4 - máx 10MB)";
   };
 
   return (
