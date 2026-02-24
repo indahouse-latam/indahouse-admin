@@ -1,3 +1,5 @@
+import { isProduction } from "./env";
+
 export const CONTRACTS = {
     baseSepolia: {
         indaRoot: "0x2c3a13BDD9bC55ED52Ec1A5BBe06FF577106f08a",
@@ -15,7 +17,7 @@ export const CONTRACTS = {
         tokenFactory: "0x9B7b22Cf5Bf1BbbB5D958534339c1c72D95eC9D7",
         distributorProxy: "0xe7A2cC2f4da50054D80Db0E10e34652B9fb2Fb3C",
     },
-    // deployment-docs (Amoy 80002, CO) – .deployment_state.json
+    // QA: deployment-docs (Amoy 80002, CO) – .deployment_state.json
     polygonAmoy: {
         indaRoot: "0xA19006C5Fe8baa747317b811c9D127cc762A5878",
         baseToken: "0x6C9A47762AAE694067903F4A7aB65E074488c625", // COPS/USDC on Amoy Testnet
@@ -39,7 +41,41 @@ export const CONTRACTS = {
         IndaAdminRouter: "0x524BEfC17B4c8BE2d1d31ed7d5E0A5260c83a6b1",
         CommitCampaign: "0x7792634b713Dc0B64607e68AD144c949ed2b3578",
         indahouseRegistry: "0x338410e6B6445bA93e25C771F1883CdB3EC597e4"
+    },
+    // PRODUCTION: Polygon Mainnet (137). Sustituir placeholders por direcciones reales o configurar en Vercel.
+    polygon: {
+        indaRoot: "0x0000000000000000000000000000000000000000",
+        baseToken: "0x0000000000000000000000000000000000000000",
+        cops: "0x0000000000000000000000000000000000000000",
+        usdc: "0x0000000000000000000000000000000000000000",
+        InDH: "0x0000000000000000000000000000000000000000",
+        indaProperties: "0x0000000000000000000000000000000000000000",
+        landOwner: "0x0000000000000000000000000000000000000000",
+        adminAddress: "0x0000000000000000000000000000000000000000",
+        indaAdmin: "0x0000000000000000000000000000000000000000",
+        indaLock: "0x0000000000000000000000000000000000000000",
+        capitalGainsVault: "0x0000000000000000000000000000000000000000",
+        router: "0x0000000000000000000000000000000000000000",
+        rentVault: "0x0000000000000000000000000000000000000000",
+        sIndh: "0x0000000000000000000000000000000000000000",
+        commitFactory: "0x0000000000000000000000000000000000000000",
+        tokenFactory: "0x0000000000000000000000000000000000000000",
+        distributorProxy: "0x0000000000000000000000000000000000000000",
+        manager: "0x0000000000000000000000000000000000000000",
+        PropertyRegistry: "0x0000000000000000000000000000000000000000",
+        IndaAdminRouter: "0x0000000000000000000000000000000000000000",
+        CommitCampaign: "0x0000000000000000000000000000000000000000",
+        indahouseRegistry: "0x0000000000000000000000000000000000000000"
     }
 } as const;
 
-export const DEFAULT_CHAIN_ID = 80002; // Polygon Amoy
+export type ContractsNetworkKey = "polygonAmoy" | "polygon";
+
+/** Red activa según entorno: QA = polygonAmoy (80002), Production = polygon (137) */
+export const CONTRACTS_NETWORK: ContractsNetworkKey = isProduction ? "polygon" : "polygonAmoy";
+
+/** Contratos de la red activa (usar en lugar de CONTRACTS.polygonAmoy en toda la app) */
+export const currentContracts = CONTRACTS[CONTRACTS_NETWORK];
+
+/** Chain ID por defecto: QA = 80002 (Polygon Amoy), Production = 137 (Polygon Mainnet) */
+export const DEFAULT_CHAIN_ID = isProduction ? 137 : 80002;

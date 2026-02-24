@@ -108,7 +108,7 @@ All API calls use:
 
 - **Primary Network**: Polygon Amoy (Chain ID: 80002)
 - **Contract addresses**: Defined in `src/config/contracts.ts`
-  - `CONTRACTS.polygonAmoy` - Primary testnet (Polygon Amoy)
+  - `currentContracts` (QA = Polygon Amoy, Production = Polygon)
   - `CONTRACTS.baseSepolia` - Base testnet
   - `CONTRACTS.base` - Base mainnet
   - Key contracts: `indaRoot`, `PropertyRegistry`, `commitFactory`, `tokenFactory`, `manager`
@@ -140,7 +140,10 @@ NEXT_PUBLIC_API_URL            # Backend API base URL
 NEXT_PUBLIC_WALLET_URL         # Wallet API URL
 NEXT_PUBLIC_WALLET_API_KEY     # Wallet API key
 NEXT_PUBLIC_GOOGLE_MAPS_KEY    # Google Maps API key for location fields
+NEXT_PUBLIC_APP_ENV            # "qa" (develop) or "production" (main). Default: qa
 ```
+
+See **ENV.md** and `.env.qa.example` / `.env.production.example` for QA vs Production setup (main → production, develop → qa).
 
 ## Key Integration Points
 
@@ -153,30 +156,15 @@ NEXT_PUBLIC_GOOGLE_MAPS_KEY    # Google Maps API key for location fields
 
 ### Web3/Blockchain Integration
 
-**Primary Network**: Polygon Amoy (Testnet) - Chain ID: 80002
+**Environment-based network**: QA (develop) uses Polygon Amoy (80002); Production (main) uses Polygon Mainnet (137). Controlled by `NEXT_PUBLIC_APP_ENV`.
 
 #### Network Configuration (`src/config/contracts.ts`)
 
-The app supports three networks:
-- **Polygon Amoy** (Primary): `CONTRACTS.polygonAmoy` - Testnet for development
-- **Base Sepolia**: `CONTRACTS.baseSepolia` - Base testnet
-- **Base Mainnet**: `CONTRACTS.base` - Production network
+- **`currentContracts`** – Contratos de la red activa (usar en lugar de `CONTRACTS.polygonAmoy`).
+- **`DEFAULT_CHAIN_ID`** – 80002 (QA) o 137 (Production).
+- **`CONTRACTS_NETWORK`** – `"polygonAmoy"` o `"polygon"` según entorno.
 
-**Default Network**: Set via `DEFAULT_CHAIN_ID = 80002` (Polygon Amoy)
-
-**Key Contract Addresses (Polygon Amoy)**:
-```typescript
-CONTRACTS.polygonAmoy = {
-  indaRoot: "0x79A6c92f15839951E076c1551c5b41C1b7B0A2B7",           // Core contract
-  PropertyRegistry: "0x02f1f68a6154999366D7B9B42B7D54AA8654eD23",  // Property registry
-  indaProperties: "0x5ADF7440Fc60208A2165Ee80D27F76e0AD232121",   // NFT contract (Ownable)
-  IndaAdminRouter: "0x259b85d918603E9272f02feb4c29E849d0EE4C21",  // Admin router
-  manager: "0xcF5a5AbA4F6ec867ECB0BDC227A713a46E71019f",         // Manager contract
-  commitFactory: "0xF0fc3C0750BC753Be00b541B89d830c5A705115F",   // Campaign factory
-  tokenFactory: "0x4c7D5f5EEA569dD4294f1A6bc4383528F3f362A4",    // Token factory
-  // ... more contracts
-}
-```
+Redes disponibles en `CONTRACTS`: `polygonAmoy` (QA), `polygon` (Production, placeholders), `baseSepolia`, `base`.
 
 #### ABIs Structure (`src/config/abis.ts`)
 
@@ -316,7 +304,7 @@ DEFAULT_ADMIN_ROLE      = "0x000000000000000000000000000000000000000000000000000
 // Example: Grant USER_MANAGER_ROLE to admin
 await executeContractWriteWithKey({
   privateKey: masterWalletKey,
-  contractAddress: CONTRACTS.polygonAmoy.indaRoot,
+  contractAddress: currentContracts.indaRoot,
   abi: IndaRootAbi,
   functionName: 'grantRole',
   args: [USER_MANAGER_ROLE, adminAddress],
@@ -327,7 +315,7 @@ await executeContractWriteWithKey({
 **Checking Roles**:
 ```typescript
 const hasRole = await checkHasRole({
-  contractAddress: CONTRACTS.polygonAmoy.indaRoot,
+  contractAddress: currentContracts.indaRoot,
   abi: IndaRootAbi,
   role: USER_MANAGER_ROLE,
   account: adminAddress,
@@ -341,7 +329,7 @@ const hasRole = await checkHasRole({
 ```typescript
 const publicClient = createUserPublicClient(80002);
 const result = await publicClient.readContract({
-  address: CONTRACTS.polygonAmoy.indaRoot,
+  address: currentContracts.indaRoot,
   abi: IndaRootAbi,
   functionName: 'hasRole',
   args: [roleHash, accountAddress]
@@ -351,7 +339,7 @@ const result = await publicClient.readContract({
 **Pattern 2: Execute Transaction with User Wallet**
 ```typescript
 const hash = await executeContractWrite({
-  contractAddress: CONTRACTS.polygonAmoy.PropertyRegistry,
+  contractAddress: currentContracts.PropertyRegistry,
   abi: PropertyRegistryAbi,
   functionName: 'registerProperty',
   args: [propertyData],
@@ -365,7 +353,7 @@ const receipt = await waitForTransaction({ hash, chainId: 80002 });
 ```typescript
 const hash = await executeContractWriteWithKey({
   privateKey: customPrivateKey,
-  contractAddress: CONTRACTS.polygonAmoy.indaRoot,
+  contractAddress: currentContracts.indaRoot,
   abi: IndaRootAbi,
   functionName: 'grantRole',
   args: [roleHash, targetAddress],

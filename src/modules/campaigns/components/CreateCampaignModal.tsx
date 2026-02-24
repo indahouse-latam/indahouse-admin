@@ -5,7 +5,7 @@ import { X, DollarSign, Hash, Plus, Trash2, ShieldCheck, Loader2 } from 'lucide-
 import { useCampaigns } from '../hooks/useCampaigns';
 import { encodeFunctionData, parseUnits, decodeEventLog, Abi } from 'viem';
 import { CommitFactoryAbi, ManagerAbi, IndaRootAbi } from '@/config/abis';
-import { CONTRACTS, DEFAULT_CHAIN_ID } from '@/config/contracts';
+import { currentContracts, CONTRACTS_NETWORK, DEFAULT_CHAIN_ID } from '@/config/contracts';
 import { executeAndWaitForTransaction } from '@/utils/blockchain.utils';
 import { usePropertyTokens } from '@/modules/properties/hooks/usePropertyTokens';
 import { toast } from 'sonner';
@@ -41,8 +41,8 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
         property_token_id: '',
         property_id: '', // Property UUID
         campaign_type: 1, // Default: SINGLE_PROPERTY
-        indaRoot: CONTRACTS.polygonAmoy.indaRoot,
-        baseToken: CONTRACTS.polygonAmoy.usdc,
+        indaRoot: currentContracts.indaRoot,
+        baseToken: currentContracts.usdc,
         campaignOwner: user.walletAddress as `0x${string}` || '',
         token_address: '',
         min_cap: '100',
@@ -50,7 +50,7 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
         start_time: new Date().toISOString().slice(0, 16),
         commit_deadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
         execute_after: new Date(Date.now() + 31 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
-        network: 'polygonAmoy' as 'baseSepolia' | 'polygonAmoy',
+        network: CONTRACTS_NETWORK as 'baseSepolia' | 'polygonAmoy' | 'polygon',
     });
 
     const [feeTiers, setFeeTiers] = useState<FeeTier[]>([
@@ -181,7 +181,7 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
 
             // Step 2: Execute transaction and wait for confirmation
             const { hash, receipt } = await executeAndWaitForTransaction({
-                contractAddress: CONTRACTS.polygonAmoy.commitFactory as `0x${string}`,
+                contractAddress: currentContracts.commitFactory as `0x${string}`,
                 abi: CommitFactoryAbi as Abi,
                 functionName: 'createCampaign',
                 args: [initData],
@@ -223,7 +223,7 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
             console.log('📝 Registering campaign in Manager...');
 
             const { hash: registerHash } = await executeAndWaitForTransaction({
-                contractAddress: CONTRACTS.polygonAmoy.manager as `0x${string}`,
+                contractAddress: currentContracts.manager as `0x${string}`,
                 abi: ManagerAbi,
                 functionName: 'registerCampaign',
                 args: [campaignAddress as `0x${string}`],
@@ -307,16 +307,16 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
                 property_token_id: '',
                 property_id: '',
                 campaign_type: 1,
-                indaRoot: CONTRACTS.polygonAmoy.indaRoot,
-                baseToken: CONTRACTS.polygonAmoy.usdc,
-                campaignOwner: CONTRACTS.polygonAmoy.indaAdmin,
+                indaRoot: currentContracts.indaRoot,
+                baseToken: currentContracts.usdc,
+                campaignOwner: currentContracts.indaAdmin,
                 token_address: '',
                 min_cap: '100',
                 max_cap: '500',
                 start_time: new Date().toISOString().slice(0, 16),
                 commit_deadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
                 execute_after: new Date(Date.now() + 31 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
-                network: 'polygonAmoy',
+                network: CONTRACTS_NETWORK as 'baseSepolia' | 'polygonAmoy' | 'polygon',
             });
             onClose();
 

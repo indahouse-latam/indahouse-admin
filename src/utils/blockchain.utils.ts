@@ -1,25 +1,23 @@
 import { createWalletClient, createPublicClient, http, type Hash, type TransactionReceipt, type Abi } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import { baseSepolia, base, polygonAmoy } from 'viem/chains';
+import { baseSepolia, base, polygonAmoy, polygon } from 'viem/chains';
 import { getPrivateKey } from './nyx-wallet.ultils';
 import { LocalStorageUser } from '@/providers/AuthProvider';
 import { DEFAULT_CHAIN_ID } from '@/config/contracts';
 
 // Get RPC URL based on chain
 const getRpcUrl = (chainId: number) => {
-    if (chainId === 84532) { // Base Sepolia
-        return 'https://sepolia.base.org';
-    }
-    if (chainId === 80002) { // Polygon Amoy
-        return 'https://rpc-amoy.polygon.technology';
-    }
-    return 'https://mainnet.base.org'; // Base mainnet
+    if (chainId === 84532) return 'https://sepolia.base.org';
+    if (chainId === 80002) return 'https://rpc-amoy.polygon.technology';
+    if (chainId === 137) return 'https://polygon.drpc.org';
+    return 'https://mainnet.base.org';
 };
 
 // Get chain based on chain ID
 const getChain = (chainId: number) => {
     if (chainId === 84532) return baseSepolia;
     if (chainId === 80002) return polygonAmoy;
+    if (chainId === 137) return polygon;
     return base;
 };
 

@@ -2,7 +2,7 @@ const { createWalletClient, createPublicClient, http, isAddress } = require('vie
 const { polygonAmoy } = require('viem/chains');
 const { privateKeyToAccount } = require('viem/accounts');
 const { IndaRootAbi } = require('../src/config/abis/inda-root.abi.ts');
-const { CONTRACTS, DEFAULT_CHAIN_ID } = require('../src/config/contracts.ts');
+const { currentContracts } = require('../src/config/contracts.ts');
 
 // Configuracion
 const ADMIN_PRIVATE_KEY = ''; // Coloca aqui la private key del admin con USERS_MANAGER_ROLE
@@ -10,8 +10,6 @@ const USER_TO_WHITELIST = ''; // Direccion del usuario a whitelistear
 const WHITELIST_STATUS = true; // true = agregar a whitelist, false = remover
 
 async function whitelistUser() {
-    console.log(`\n🛡️  Updating whitelist on Polygon Amoy (chain ${DEFAULT_CHAIN_ID})...\n`);
-
     if (!ADMIN_PRIVATE_KEY) {
         console.error('❌ Error: ADMIN_PRIVATE_KEY not configured');
         console.log('Please set ADMIN_PRIVATE_KEY in the script\n');
@@ -30,7 +28,7 @@ async function whitelistUser() {
     }
 
     const account = privateKeyToAccount(ADMIN_PRIVATE_KEY);
-    const indaRootAddress = CONTRACTS.polygonAmoy.indaRoot;
+    const indaRootAddress = currentContracts.indaRoot;
 
     console.log(`IndaRoot Contract: ${indaRootAddress}`);
     console.log(`Executing from: ${account.address}`);
