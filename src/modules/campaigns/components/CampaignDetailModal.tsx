@@ -4,7 +4,7 @@ import { X, Building2, DollarSign, Calendar, Hash, TrendingUp, Clock } from 'luc
 import { Campaign } from '../hooks/useCampaigns';
 import { CommitCampaignAbi } from '@/config/abis/commit-campaing.abi';
 import { IndaAdminRouterAbi } from '@/config/abis/inda-admin-router.abi';
-import { CONTRACTS, DEFAULT_CHAIN_ID } from '@/config/contracts';
+import { currentContracts, DEFAULT_CHAIN_ID } from '@/config/contracts';
 import {
     executeContractWrite,
     createUserPublicClient,
@@ -139,7 +139,7 @@ export function CampaignDetailModal({ campaign, isOpen, onClose }: CampaignDetai
                 abi: CommitCampaignAbi,
                 functionName: 'approveFunds',
                 args: [
-                    CONTRACTS.polygonAmoy.IndaAdminRouter as `0x${string}`,
+                    currentContracts.IndaAdminRouter as `0x${string}`,
                     finState.totalCommitted!
                 ],
                 chainId: DEFAULT_CHAIN_ID
@@ -165,15 +165,15 @@ export function CampaignDetailModal({ campaign, isOpen, onClose }: CampaignDetai
 
         try {
             const hash = await executeContractWrite({
-                contractAddress: CONTRACTS.polygonAmoy.IndaAdminRouter as `0x${string}`,
+                contractAddress: currentContracts.IndaAdminRouter as `0x${string}`,
                 abi: IndaAdminRouterAbi,
                 functionName: 'finalizeAndDistributeCampaign',
                 args: [
                     campaignAddr as `0x${string}`,
                     COUNTRY_CODE_CO,
                     tokenAddr as `0x${string}`,
-                    CONTRACTS.polygonAmoy.baseToken as `0x${string}`,
-                    CONTRACTS.polygonAmoy.indaRoot as `0x${string}`
+                    currentContracts.baseToken as `0x${string}`,
+                    currentContracts.indaRoot as `0x${string}`
                 ],
                 chainId: DEFAULT_CHAIN_ID
             });

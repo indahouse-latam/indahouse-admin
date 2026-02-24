@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useState, useEffect, useContext } from 'react';
-import { CONTRACTS } from '@/config/contracts';
+import { currentContracts, DEFAULT_CHAIN_ID } from '@/config/contracts';
 
 // Define the structure based on the user's JSON
 export interface ContractsConfig {
@@ -56,18 +56,18 @@ const DEFAULT_CONFIG: ContractsConfig = {
     batch2: {
         campaignImpl: "0x7792634b713Dc0B64607e68AD144c949ed2b3578",
         distributorImpl: "0xc6C4F10538a86EBCF0dFFb3fdb8f44C351BD6EEf",
-        indaAdmin: CONTRACTS.polygonAmoy.indaAdmin,
+        indaAdmin: currentContracts.indaAdmin,
         indaProperties: "0xC78c8317Abb52aAA8774f67B98e86A60de92eE65",
         indaRootImpl: "0x2ab2c0F2Affb48d17BAd40F2396AF439F6207817",
         propertyRegistryImpl: "0x39557A81a008A933c26F9e0dd22F0E8bE9690D94"
     },
     batch3: {
         adminRouter: "0x524BEfC17B4c8BE2d1d31ed7d5E0A5260c83a6b1",
-        commitFactory: CONTRACTS.polygonAmoy.commitFactory,
+        commitFactory: currentContracts.commitFactory,
         distributorProxy: "0xDaA1d43185509d4b10a928Da13dcABB230e8F47D",
-        indaRootProxy: CONTRACTS.polygonAmoy.indaRoot,
+        indaRootProxy: currentContracts.indaRoot,
         propertyRegistryProxy: "0xe6B032efb17CC1eeE1c3005A0828080f4e1Ebb55",
-        router: CONTRACTS.polygonAmoy.router
+        router: currentContracts.router
     },
     batch5: {
         manager: "0xe48399f36Db6b3591dCb1002b7cFC67091374BB7",
@@ -77,7 +77,7 @@ const DEFAULT_CONFIG: ContractsConfig = {
     },
     countryCode: "CO",
     lastCompletedBatch: 5,
-    network: "80002",
+    network: String(DEFAULT_CHAIN_ID),
     timestamp: 1771420529
 };
 

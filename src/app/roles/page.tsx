@@ -22,14 +22,14 @@ import {
     ManagerAbi
 } from "@/config/abis";
 import { checkHasRole, executeContractWriteWithKey, waitForTransaction, createUserPublicClient } from "@/utils/blockchain.utils";
-import { CONTRACTS, DEFAULT_CHAIN_ID } from "@/config/contracts";
+import { currentContracts, DEFAULT_CHAIN_ID } from "@/config/contracts";
 import { Abi, isAddress } from "viem";
 import { getPrivateKeyFromLocalStorage } from "@/utils/nyx-wallet.ultils";
 
-// Contract addresses from Polygon Amoy
+// Contract addresses según entorno (QA = Polygon Amoy, Production = Polygon)
 const POLYGON_CONTRACTS = {
-    indaRoot: CONTRACTS.polygonAmoy.indaRoot as `0x${string}`,
-    propertyRegistry: CONTRACTS.polygonAmoy.PropertyRegistry as `0x${string}`,
+    indaRoot: currentContracts.indaRoot as `0x${string}`,
+    propertyRegistry: currentContracts.PropertyRegistry as `0x${string}`,
 };
 
 // Role hashes from production guide
@@ -59,7 +59,7 @@ interface RoleOption {
 interface AdminTransferContract {
     id: string;
     label: string;
-    contractKey: keyof typeof CONTRACTS.polygonAmoy;
+    contractKey: keyof typeof currentContracts;
     abiName: 'RouterAbi' | 'IndaAdminRouterAbi' | 'IndahouseRegistryAbi' | 'CommitFactoryAbi' | 'ManagerAbi' | 'IndaRootAbi';
     status: AdminTransferStatus;
     selected: boolean;
@@ -236,9 +236,9 @@ export default function RolesPage() {
             case 'propertyRegistry':
                 return POLYGON_CONTRACTS.propertyRegistry;
             case 'indaAdminRouter':
-                return CONTRACTS.polygonAmoy.IndaAdminRouter as `0x${string}`;
+                return currentContracts.IndaAdminRouter as `0x${string}`;
             case 'manager':
-                return CONTRACTS.polygonAmoy.manager as `0x${string}`;
+                return currentContracts.manager as `0x${string}`;
             default:
                 throw new Error(`Unknown contract key: ${key}`);
         }
@@ -282,7 +282,7 @@ export default function RolesPage() {
     };
 
     const getAdminContractAddress = (contractKey: string): `0x${string}` => {
-        return CONTRACTS.polygonAmoy[contractKey as keyof typeof CONTRACTS.polygonAmoy] as `0x${string}`;
+        return currentContracts[contractKey as keyof typeof currentContracts] as `0x${string}`;
     };
 
     const updateAdminContract = (id: string, updates: Partial<AdminTransferContract>) => {

@@ -7,7 +7,7 @@ import { useCountries } from '../hooks/useCountries';
 import { usePropertyTokens } from '../hooks/usePropertyTokens';
 import { Abi, decodeEventLog } from 'viem';
 import { TokenFactoryAbi, ManagerAbi, PropertyRegistryAbi, IndahouseRegistryAbi } from '@/config/abis';
-import { CONTRACTS, DEFAULT_CHAIN_ID } from '@/config/contracts';
+import { currentContracts, DEFAULT_CHAIN_ID } from '@/config/contracts';
 import { toast } from 'sonner';
 import { createUserPublicClient, createUserWalletClient, executeAndWaitForTransaction } from '@/utils/blockchain.utils';
 
@@ -48,7 +48,7 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
         setIsLoading(true);
 
         try {
-            const networkConfig = CONTRACTS["polygonAmoy"];
+            const networkConfig = currentContracts;
             const chainId = DEFAULT_CHAIN_ID;
 
             const selectedCountry = countries?.find(c => c.id === formData?.country_id);

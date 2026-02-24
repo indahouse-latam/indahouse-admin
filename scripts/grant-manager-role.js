@@ -2,7 +2,7 @@ const { createWalletClient, createPublicClient, http } = require('viem');
 const { polygonAmoy } = require('viem/chains');
 const { privateKeyToAccount } = require('viem/accounts');
 const { ManagerAbi } = require('../src/config/abis/manager.abi.ts');
-const { CONTRACTS, DEFAULT_CHAIN_ID } = require('../src/config/contracts.ts');
+const { currentContracts } = require('../src/config/contracts.ts');
 
 // Configuración
 const ADMIN_PRIVATE_KEY = ''; // Coloca aquí la private key del admin actual
@@ -21,7 +21,7 @@ async function grantManagerRole() {
 
     // Crear cuenta desde private key
     const account = privateKeyToAccount(ADMIN_PRIVATE_KEY);
-    const managerAddress = CONTRACTS.polygonAmoy.manager;
+    const managerAddress = currentContracts.manager;
 
     console.log(`Manager Contract: ${managerAddress}`);
     console.log(`Granting from: ${account.address}`);
