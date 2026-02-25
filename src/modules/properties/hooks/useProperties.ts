@@ -42,6 +42,8 @@ export interface Property {
   createdAt?: string;
   property_reference?: string;
   propertyReference?: string;
+  builder_id?: string | null;
+  builder?: { id: string; name: string } | null;
 }
 
 interface PropertiesResponse {
@@ -59,6 +61,7 @@ interface UpdatePropertyPayload {
   built_time: number;
   buyback_time?: number;
   status: string;
+  builder_id?: string | null;
   location: LocationData;
   main_characteristics: Array<{ name: string; description: string }>;
   extra_characteristics: Array<{ name: string; description: string }>;
