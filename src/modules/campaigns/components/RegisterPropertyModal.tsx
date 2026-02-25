@@ -10,6 +10,7 @@ import { LocationFields, type LocationData } from '@/components/LocationFields';
 import { PropertyMultimediaSection } from './PropertyMultimediaSection';
 import { PropertyRiskSection } from '@/modules/properties/components/PropertyRiskSection';
 import { InvestmentStatesSection } from '@/modules/properties/components/InvestmentStatesSection';
+import { usePropertyBuilders } from '@/modules/properties/hooks/usePropertyBuilders';
 import { PROPERTY_TYPES, PROPERTY_STRATA } from '@/modules/properties/constants';
 
 interface RegisterPropertyModalProps {
@@ -32,6 +33,7 @@ const INITIAL_FORM_DATA = {
     built_time: '1',
     buyback_time: '12',
     status: 'VERIFIED' as 'VERIFIED' | 'CREATED' | 'PENDING' | 'IN_PROGRESS' | 'DENIED' | 'BOUGHT',
+    builder_id: '' as string,
     location: {
         address: '',
         full_location: '',
@@ -57,6 +59,7 @@ const INITIAL_FORM_DATA = {
 
 export function RegisterPropertyModal({ isOpen, onClose }: RegisterPropertyModalProps) {
     const { data: usersResponse } = useUsers();
+    const { builders, isLoading: buildersLoading } = usePropertyBuilders();
     const users = usersResponse || [];
     const queryClient = useQueryClient();
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -99,6 +102,7 @@ export function RegisterPropertyModal({ isOpen, onClose }: RegisterPropertyModal
                 ...(formData.stratumNoAplica ? { stratum: null } : { stratum: Number.parseInt(formData.stratum) }),
                 built_time: Number.parseInt(formData.built_time.toString()),
                 status: formData.status,
+                ...(formData.builder_id ? { builder_id: formData.builder_id } : {}),
                 location: {
                     address: formData.location.address,
                     full_location: formData.location.full_location,
@@ -357,6 +361,20 @@ export function RegisterPropertyModal({ isOpen, onClose }: RegisterPropertyModal
                                         <option value="DENIED">Denegada</option>
                                         <option value="BOUGHT">Comprada</option>
                                         <option value="VERIFIED">Verificada</option>
+                                    </select>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-bold uppercase text-muted-foreground">Constructora</label>
+                                    <select
+                                        className="w-full bg-secondary-100 border border-secondary-300 rounded-lg px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                                        value={formData.builder_id}
+                                        onChange={(e) => setFormData({ ...formData, builder_id: e.target.value })}
+                                        disabled={buildersLoading}
+                                    >
+                                        <option value="">Sin constructora</option>
+                                        {builders.map((b) => (
+                                            <option key={b.id} value={b.id}>{b.name}</option>
+                                        ))}
                                     </select>
                                 </div>
                             </div>

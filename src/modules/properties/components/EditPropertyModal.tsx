@@ -9,6 +9,7 @@ import { PropertyRiskSection } from './PropertyRiskSection';
 import { InvestmentStatesSection } from './InvestmentStatesSection';
 import { Property } from '../hooks/useProperties';
 import { useProperties } from '../hooks/useProperties';
+import { usePropertyBuilders } from '../hooks/usePropertyBuilders';
 import { PROPERTY_TYPES, PROPERTY_STRATA } from '../constants';
 
 interface EditPropertyModalProps {
@@ -21,6 +22,8 @@ type TabType = 'general' | 'details' | 'location' | 'multimedia' | 'risk' | 'inv
 
 export function EditPropertyModal({ isOpen, onClose, property }: EditPropertyModalProps) {
     const { updateProperty, isUpdating } = useProperties();
+    const { builders, isLoading: buildersLoading, createBuilderAsync, isCreating: isCreatingBuilder } = usePropertyBuilders();
+    const [newBuilderName, setNewBuilderName] = useState('');
     const [activeTab, setActiveTab] = useState<TabType>('general');
 
     const [formData, setFormData] = useState({
@@ -35,6 +38,7 @@ export function EditPropertyModal({ isOpen, onClose, property }: EditPropertyMod
         built_time: '1',
         buyback_time: '12',
         status: 'VERIFIED' as 'VERIFIED' | 'CREATED' | 'PENDING' | 'IN_PROGRESS' | 'DENIED' | 'BOUGHT' | 'BLOCKED',
+        builder_id: '' as string,
         location: {
             id: undefined as string | undefined,
             address: '',
@@ -69,6 +73,7 @@ export function EditPropertyModal({ isOpen, onClose, property }: EditPropertyMod
                 built_time: builtTime.toString(),
                 buyback_time: buybackTime?.toString() || '12',
                 status: property.status || 'VERIFIED',
+                builder_id: (property as any).builder_id ?? (property as any).builder?.id ?? '',
                 location: {
                     id: (property.location as any)?.id,
                     address: property.location?.address || '',
@@ -113,6 +118,7 @@ export function EditPropertyModal({ isOpen, onClose, property }: EditPropertyMod
             built_time: Number.parseInt(formData.built_time.toString()),
             buyback_time: formData.buyback_time ? Number.parseInt(formData.buyback_time.toString()) : undefined,
             status: formData.status,
+            builder_id: formData.builder_id || null,
             location: {
                 id: formData.location.id || crypto.randomUUID(),
                 address: formData.location.address,
@@ -334,6 +340,52 @@ export function EditPropertyModal({ isOpen, onClose, property }: EditPropertyMod
                                         <option value="VERIFIED">Verificada</option>
                                         <option value="BLOCKED">Bloqueada</option>
                                     </select>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-bold uppercase text-muted-foreground">Constructora</label>
+                                    <select
+                                        className="w-full bg-secondary-100 border border-secondary-300 rounded-lg px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                                        value={formData.builder_id}
+                                        onChange={(e) => setFormData({ ...formData, builder_id: e.target.value })}
+                                        disabled={buildersLoading}
+                                    >
+                                        <option value="">Sin constructora</option>
+                                        {builders.map((b) => (
+                                            <option key={b.id} value={b.id}>{b.name}</option>
+                                        ))}
+                                    </select>
+                                    <p className="text-xs text-muted-foreground">Empresa constructora del proyecto (se muestra en la ficha de la propiedad)</p>
+                                    <div className="flex gap-2 items-end">
+                                        <div className="flex-1">
+                                            <label className="text-[10px] font-bold uppercase text-muted-foreground">Agregar nueva constructora</label>
+                                            <input
+                                                type="text"
+                                                className="w-full mt-1 bg-secondary-100 border border-secondary-300 rounded-lg px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-primary-500"
+                                                placeholder="Nombre de la empresa"
+                                                value={newBuilderName}
+                                                onChange={(e) => setNewBuilderName(e.target.value)}
+                                            />
+                                        </div>
+                                        <button
+                                            type="button"
+                                            disabled={!newBuilderName.trim() || isCreatingBuilder}
+                                            onClick={async () => {
+                                                const name = newBuilderName.trim();
+                                                if (!name) return;
+                                                try {
+                                                    const builder = await createBuilderAsync({ name });
+                                                    setFormData((f) => ({ ...f, builder_id: builder.id }));
+                                                    setNewBuilderName('');
+                                                } catch {
+                                                    // toast already in hook
+                                                }
+                                            }}
+                                            className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50"
+                                        >
+                                            {isCreatingBuilder ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Agregar'}
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
 
