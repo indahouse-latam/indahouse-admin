@@ -11,7 +11,7 @@ export interface PropertyRisk {
   strategy: string;
   primaryGoal: string;
   horizonStartYears: number;
-  horizonEndYears: number;
+  horizonEndYears: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -25,6 +25,22 @@ export const RISK_OPTIONS: { value: RiskType; label: string }[] = [
   { value: 'venture', label: 'Venture' },
 ];
 
+/** Mapea la respuesta del API (snake_case) al tipo del admin (camelCase). */
+function mapRiskFromApi(raw: Record<string, unknown> | null): PropertyRisk | null {
+  if (!raw || typeof raw !== 'object') return null;
+  return {
+    id: String(raw.id),
+    propertyId: String(raw.property_id),
+    risk: (raw.risk as RiskType) || 'balanced',
+    strategy: String(raw.strategy ?? ''),
+    primaryGoal: String(raw.primary_goal ?? ''),
+    horizonStartYears: Number(raw.horizon_start_years ?? 0),
+    horizonEndYears: raw.horizon_end_years != null ? Number(raw.horizon_end_years) : null,
+    createdAt: String(raw.created_at ?? ''),
+    updatedAt: String(raw.updated_at ?? ''),
+  };
+}
+
 export const usePropertyRisk = (propertyId: string | null) => {
   const queryClient = useQueryClient();
 
@@ -33,9 +49,15 @@ export const usePropertyRisk = (propertyId: string | null) => {
     queryFn: async () => {
       try {
         const response = await fetchApi(`/properties/${propertyId}/risk`);
-        return response.data || response;
+        const data = response.data ?? response;
+        return mapRiskFromApi(data as Record<string, unknown>);
       } catch (error: any) {
-        if (error.message?.includes('404')) return null;
+        const msg = error?.message ?? '';
+        const is404 =
+          msg.includes('404') ||
+          msg.includes('Property risk not found') ||
+          msg.includes('PRISK-404');
+        if (is404) return null;
         throw error;
       }
     },

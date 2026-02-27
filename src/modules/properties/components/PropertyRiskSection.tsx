@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Loader2, ShieldAlert, Trash2 } from 'lucide-react';
 import { usePropertyRisk, RISK_OPTIONS, RiskType } from '../hooks/usePropertyRisk';
 
@@ -44,6 +44,10 @@ function getRiskOptionLabel(riskValue: RiskType): string {
 export function PropertyRiskSection({ propertyId }: PropertyRiskSectionProps) {
   const { risk, isLoading, createRisk, isCreating, updateRisk, isUpdating, deleteRisk, isDeleting } = usePropertyRisk(propertyId);
   const [selectedRisk, setSelectedRisk] = useState<RiskType>('balanced');
+
+  useEffect(() => {
+    if (risk?.risk) setSelectedRisk(risk.risk);
+  }, [risk?.risk]);
 
   if (!propertyId) {
     return (
@@ -115,7 +119,9 @@ export function PropertyRiskSection({ propertyId }: PropertyRiskSectionProps) {
         </div>
         <div className="p-3 rounded-lg bg-secondary/30 border border-border col-span-2">
           <p className="text-[10px] font-bold uppercase text-muted-foreground mb-1">Horizonte</p>
-          <p className="text-sm font-medium">{risk.horizonStartYears} - {risk.horizonEndYears} años</p>
+          <p className="text-sm font-medium">
+            {risk.horizonStartYears} - {risk.horizonEndYears != null ? `${risk.horizonEndYears} años` : '∞'}
+          </p>
         </div>
       </div>
 
