@@ -5,8 +5,9 @@ import { X, Coins, Loader2 } from 'lucide-react';
 import { useMarkets } from '@/modules/markets/hooks/useMarkets';
 import { useCountries } from '../hooks/useCountries';
 import { usePropertyTokens } from '../hooks/usePropertyTokens';
-import { Abi, decodeEventLog } from 'viem';
+import { Abi, decodeEventLog, parseAbi } from 'viem';
 import { TokenFactoryAbi, ManagerAbi, PropertyRegistryAbi, IndahouseRegistryAbi } from '@/config/abis';
+import { PoolFactoryAbi } from '@/config/abis/pool-factory.abi';
 import { currentContracts, DEFAULT_CHAIN_ID } from '@/config/contracts';
 import { toast } from 'sonner';
 import { createUserPublicClient, createUserWalletClient, executeAndWaitForTransaction } from '@/utils/blockchain.utils';
@@ -32,7 +33,9 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
     });
 
     const [isLoading, setIsLoading] = useState(false);
-    const [loadingStep, setLoadingStep] = useState<'certificate' | 'creating' | 'confirming' | 'registering_manager' | 'registering_property' | 'saving' | null>(null);
+    const [loadingStep, setLoadingStep] = useState<
+        'certificate' | 'creating_distributor' | 'creating' | 'confirming' | 'init_distributor' | 'registering_manager' | 'registering_property' | 'saving' | null
+    >(null);
 
     if (!isOpen) return null;
 
@@ -50,6 +53,8 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
         try {
             const networkConfig = currentContracts;
             const chainId = DEFAULT_CHAIN_ID;
+            const poolFactoryAddress = (networkConfig as { poolFactory?: string }).poolFactory as `0x${string}` | undefined;
+            let distributorAddress = networkConfig.distributorProxy as `0x${string}`;
 
             const selectedCountry = countries?.find(c => c.id === formData?.country_id);
             if (!selectedCountry) {
@@ -67,6 +72,15 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
             const publicClient = createUserPublicClient(chainId);
             const walletClient = await createUserWalletClient(chainId);
             const adminAddress = walletClient.account.address;
+            const distributorReadAbi = parseAbi([
+                'function shareToken() view returns (address)',
+                'function rewardToken() view returns (address)',
+                'function indaRoot() view returns (address)',
+            ]);
+            const distributorWriteAbi = parseAbi([
+                'function initialize(address,address,address,string)',
+            ]);
+            const zeroAddress = '0x0000000000000000000000000000000000000000';
 
             let managerAddress: `0x${string}`;
             const registryAddress = (networkConfig as { indahouseRegistry?: string }).indahouseRegistry;
@@ -77,10 +91,48 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
                     functionName: 'getManager',
                     args: [countryCodeBytes32],
                 }) as `0x${string}`;
-                const zero = '0x0000000000000000000000000000000000000000' as const;
-                managerAddress = (managerFromRegistry && managerFromRegistry !== zero ? managerFromRegistry : networkConfig.manager) as `0x${string}`;
+                managerAddress = (managerFromRegistry && managerFromRegistry !== zeroAddress ? managerFromRegistry : networkConfig.manager) as `0x${string}`;
             } else {
                 managerAddress = networkConfig.manager as `0x${string}`;
+            }
+
+            // Guardrail: do not create a new token if configured distributor is already bound to a different shareToken
+            const existingShareToken = await publicClient.readContract({
+                address: distributorAddress,
+                abi: distributorReadAbi,
+                functionName: 'shareToken',
+            }) as `0x${string}`;
+            if (existingShareToken !== zeroAddress) {
+                if (!poolFactoryAddress || poolFactoryAddress === zeroAddress) {
+                    throw new Error(
+                        `Configured distributor ${distributorAddress} is already initialized with shareToken ${existingShareToken}. ` +
+                        'PoolFactory is not configured in currentContracts. Configure currentContracts.poolFactory to auto-create a new distributor.'
+                    );
+                }
+
+                setLoadingStep('creating_distributor');
+                console.log('🔄 Existing distributor is busy. Creating a new distributor proxy...');
+
+                const simulation = await publicClient.simulateContract({
+                    account: adminAddress,
+                    address: poolFactoryAddress,
+                    abi: PoolFactoryAbi as Abi,
+                    functionName: 'createDistributorProxy',
+                    args: [countryCodeBytes32, adminAddress],
+                });
+                const simulatedDistributor = simulation.result as `0x${string}`;
+
+                await executeAndWaitForTransaction({
+                    contractAddress: poolFactoryAddress,
+                    abi: PoolFactoryAbi as Abi,
+                    functionName: 'createDistributorProxy',
+                    args: [countryCodeBytes32, adminAddress],
+                    chainId,
+                });
+
+                // Use the created proxy returned by simulation for the same tx params/state
+                distributorAddress = simulatedDistributor;
+                console.log('✅ New distributor proxy created:', distributorAddress);
             }
 
             const existingCert = await publicClient.readContract({
@@ -89,7 +141,6 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
                 functionName: 'userCertificates',
                 args: [adminAddress],
             }) as `0x${string}`;
-            const zeroAddress = '0x0000000000000000000000000000000000000000';
             if (!existingCert || existingCert === zeroAddress) {
                 console.log('📋 No manager certificate for this country. Creating manager certificate...');
                 await executeAndWaitForTransaction({
@@ -110,11 +161,11 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
 
             const { hash, receipt } = await executeAndWaitForTransaction({
                 contractAddress: networkConfig.tokenFactory as `0x${string}`,
-                abi: TokenFactoryAbi,
+                abi: TokenFactoryAbi as Abi,
                 functionName: 'createToken',
                 args: [
                     networkConfig.indaRoot as `0x${string}`,
-                    networkConfig.distributorProxy as `0x${string}`,
+                    distributorAddress,
                     formData.name,
                     formData.symbol,
                     networkConfig.baseToken as `0x${string}`,
@@ -129,7 +180,7 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
             const log = receipt.logs.find((log) => {
                 try {
                     const decoded = decodeEventLog({
-                        abi: TokenFactoryAbi,
+                        abi: TokenFactoryAbi as Abi,
                         data: log.data,
                         topics: log.topics,
                     });
@@ -144,13 +195,58 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
             }
 
             const decoded = decodeEventLog({
-                abi: TokenFactoryAbi,
+                abi: TokenFactoryAbi as Abi,
                 data: log.data,
                 topics: log.topics,
-            });
-            const tokenAddress = decoded.args.token as string;
+            }) as unknown as { args?: { token?: string } };
+            const tokenAddress = decoded.args?.token;
+            if (!tokenAddress) {
+                throw new Error('Token address not found in TokenCreated event args');
+            }
 
             console.log('🎯 Token created at address:', tokenAddress);
+
+            // Step 2.1: Initialize distributor for this token if not initialized
+            setLoadingStep('init_distributor');
+            console.log('📝 Validating distributor initialization...');
+            const [shareToken, rewardToken, indaRootAddr] = await Promise.all([
+                publicClient.readContract({
+                    address: distributorAddress,
+                    abi: distributorReadAbi,
+                    functionName: 'shareToken',
+                }),
+                publicClient.readContract({
+                    address: distributorAddress,
+                    abi: distributorReadAbi,
+                    functionName: 'rewardToken',
+                }),
+                publicClient.readContract({
+                    address: distributorAddress,
+                    abi: distributorReadAbi,
+                    functionName: 'indaRoot',
+                }),
+            ]) as [`0x${string}`, `0x${string}`, `0x${string}`];
+
+            if (shareToken === zeroAddress || rewardToken === zeroAddress || indaRootAddr === zeroAddress) {
+                console.log('🛠️ Distributor not initialized, initializing now...');
+                await executeAndWaitForTransaction({
+                    contractAddress: distributorAddress,
+                    abi: distributorWriteAbi,
+                    functionName: 'initialize',
+                    args: [
+                        tokenAddress as `0x${string}`,
+                        networkConfig.baseToken as `0x${string}`,
+                        networkConfig.indaRoot as `0x${string}`,
+                        `Distributor-${tokenAddress.slice(0, 10)}`,
+                    ],
+                    chainId,
+                });
+                console.log('✅ Distributor initialized');
+            } else if (shareToken.toLowerCase() !== tokenAddress.toLowerCase()) {
+                throw new Error(
+                    `Distributor shareToken mismatch after token creation. Expected ${tokenAddress}, got ${shareToken}.`
+                );
+            }
 
             // Step 2: Register token in Manager (same Manager as certificate, for this country)
             setLoadingStep('registering_manager');
@@ -162,7 +258,7 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
                 functionName: 'registerIndividualToken',
                 args: [
                     tokenAddress as `0x${string}`,
-                    networkConfig.distributorProxy as `0x${string}`,
+                    distributorAddress,
                     formData.symbol,
                 ],
                 chainId,
@@ -178,7 +274,7 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
 
             const { hash: registryHash } = await executeAndWaitForTransaction({
                 contractAddress: networkConfig.PropertyRegistry as `0x${string}`,
-                abi: PropertyRegistryAbi,
+                abi: PropertyRegistryAbi as Abi,
                 functionName: 'registerProperty',
                 args: [
                     countryCodeBytes32,
@@ -198,7 +294,7 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
                 createPropertyToken(
                     {
                         token_address: tokenAddress,
-                        distributor_address: networkConfig.distributorProxy,
+                        distributor_address: distributorAddress,
                         country_id: formData.country_id,
                         symbol: formData.symbol,
                         name: formData.name,
@@ -212,7 +308,7 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
                             console.log('✅ Token saved to database');
                             resolve();
                         },
-                        onError: (error: any) => {
+                        onError: (error: unknown) => {
                             reject(error);
                         },
                     }
@@ -235,10 +331,11 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
             });
 
             onClose();
-        } catch (error: any) {
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : 'Unknown error occurred';
             console.error('❌ Error creating token:', error);
             toast.error('Failed to create token', {
-                description: error.message || 'Unknown error occurred',
+                description: message,
             });
         } finally {
             setIsLoading(false);
@@ -248,8 +345,10 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
 
     const getLoadingMessage = () => {
         if (loadingStep === 'certificate') return 'Verificando certificado del país...';
+        if (loadingStep === 'creating_distributor') return 'Creating distributor proxy...';
         if (loadingStep === 'creating') return 'Creating token on blockchain...';
         if (loadingStep === 'confirming') return 'Confirming transaction...';
+        if (loadingStep === 'init_distributor') return 'Initializing distributor...';
         if (loadingStep === 'registering_manager') return 'Registering in Manager...';
         if (loadingStep === 'registering_property') return 'Registering property...';
         if (loadingStep === 'saving') return 'Saving to database...';
