@@ -197,11 +197,13 @@ export function CampaignDetailModal({ campaign, isOpen, onClose }: CampaignDetai
                         if (!campaignRegistered) preflightIssues.push('Campaign is not registered in resolved manager.');
 
                         const poolVault = poolInfo[2];
-                        const criticalAddresses: `0x${string}`[] = [
-                            currentContracts.IndaAdminRouter as `0x${string}`,
-                            campaignAddr,
+                        const criticalAddresses: { kind: string; address: `0x${string}` }[] = [
+                            { kind: 'router', address: currentContracts.IndaAdminRouter as `0x${string}` },
+                            { kind: 'campaign', address: campaignAddr },
                         ];
-                        if (poolVault && poolVault !== zeroAddress) criticalAddresses.push(poolVault);
+                        if (poolVault && poolVault !== zeroAddress) {
+                            criticalAddresses.push({ kind: 'poolVault', address: poolVault });
+                        }
 
                         const investorAddresses = await publicClient.readContract({
                             address: campaignAddr,
@@ -243,7 +245,7 @@ export function CampaignDetailModal({ campaign, isOpen, onClose }: CampaignDetai
                         }
 
                         for (const inv of investorAddresses) {
-                            criticalAddresses.push(inv);
+                            criticalAddresses.push({ kind: 'investor', address: inv });
                             const cmd = await publicClient.readContract({
                                 address: managerFromRegistry,
                                 abi: parseAbi(['function userCertificates(address) view returns (address)']),
@@ -251,21 +253,37 @@ export function CampaignDetailModal({ campaign, isOpen, onClose }: CampaignDetai
                                 args: [inv],
                             }) as `0x${string}`;
                             if (cmd === zeroAddress) {
-                                preflightIssues.push(`Investor ${inv.slice(0, 10)} has no CMD.`);
+                                preflightIssues.push(`Investor ${inv} has no CMD.`);
                             } else {
-                                criticalAddresses.push(cmd);
+                                criticalAddresses.push({ kind: 'cmd', address: cmd });
                             }
                         }
 
-                        const unique = [...new Set(criticalAddresses.map((a) => a.toLowerCase()))];
-                        for (const addr of unique) {
+                        const uniqueAddressMap = new Map<string, { address: `0x${string}`; kinds: Set<string> }>();
+                        for (const item of criticalAddresses) {
+                            const normalized = item.address.toLowerCase();
+                            const existing = uniqueAddressMap.get(normalized);
+                            if (existing) {
+                                existing.kinds.add(item.kind);
+                            } else {
+                                uniqueAddressMap.set(normalized, {
+                                    address: item.address,
+                                    kinds: new Set([item.kind]),
+                                });
+                            }
+                        }
+
+                        for (const item of uniqueAddressMap.values()) {
                             const isWhitelisted = await publicClient.readContract({
                                 address: currentContracts.indaRoot as `0x${string}`,
                                 abi: parseAbi(['function whitelist(address) view returns (bool)']),
                                 functionName: 'whitelist',
-                                args: [addr as `0x${string}`],
+                                args: [item.address],
                             }) as boolean;
-                            if (!isWhitelisted) preflightIssues.push(`Address ${addr.slice(0, 10)} is not whitelisted.`);
+                            if (!isWhitelisted) {
+                                const labels = [...item.kinds].join(', ');
+                                preflightIssues.push(`[${labels}] Address ${item.address} is not whitelisted.`);
+                            }
                         }
 
                         const allowance = await publicClient.readContract({
