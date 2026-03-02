@@ -132,7 +132,9 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
             if (!selectedCountryCode) {
                 throw new Error('Cannot resolve country code for selected property token.');
             }
-            const countryCodeBytes32 = toCountryCodeBytes32(selectedCountryCode);
+            const selectedCountryCodeForBlockchain =
+                selectedCountryCode.toUpperCase() === 'ES' ? 'CO' : selectedCountryCode.toUpperCase();
+            const countryCodeBytes32 = toCountryCodeBytes32(selectedCountryCodeForBlockchain);
             const zeroAddress = '0x0000000000000000000000000000000000000000';
             const registryAddress = (currentContracts.indahouseRegistry || '').trim() as `0x${string}`;
             let managerForCampaign = currentContracts.manager as `0x${string}`;
@@ -152,7 +154,7 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
                     args: [countryCodeBytes32],
                 }) as `0x${string}`;
                 if (!managerFromRegistry || managerFromRegistry === zeroAddress) {
-                    throw new Error(`No manager found in registry for country ${selectedCountryCode}.`);
+                    throw new Error(`No manager found in registry for country ${selectedCountryCodeForBlockchain}.`);
                 }
                 managerForCampaign = managerFromRegistry;
             }
@@ -161,7 +163,7 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
                 currentContracts.manager.toLowerCase() !== managerForCampaign.toLowerCase()
             ) {
                 toast.warning(
-                    `Manager mismatch detected. Using registry manager ${managerForCampaign} for country ${selectedCountryCode}.`
+                    `Manager mismatch detected. Using registry manager ${managerForCampaign} for blockchain country ${selectedCountryCodeForBlockchain} (DB country ${selectedCountryCode.toUpperCase()}).`
                 );
             }
 
