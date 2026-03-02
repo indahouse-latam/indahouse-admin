@@ -39,6 +39,13 @@ interface FinalizationState {
     preflightIssues: string[];
 }
 const BATCH_SIZE = 50;
+const COUNTRY_CODE_ES_BYTES32 = `0x4553000000000000000000000000000000000000000000000000000000000000`;
+const COUNTRY_CODE_CO_BYTES32 = `0x434f000000000000000000000000000000000000000000000000000000000000`;
+
+function mapCountryCodeForFinalization(countryCode: `0x${string}`): `0x${string}` {
+    if (countryCode.toLowerCase() !== COUNTRY_CODE_ES_BYTES32) return countryCode;
+    return COUNTRY_CODE_CO_BYTES32;
+}
 
 export function CampaignDetailModal({ campaign, isOpen, onClose }: CampaignDetailModalProps) {
     const queryClient = useQueryClient();
@@ -161,12 +168,13 @@ export function CampaignDetailModal({ campaign, isOpen, onClose }: CampaignDetai
 
             // Additional preflight checks for clear UI errors before finalization
             if (dynamicCountryCode) {
+                const countryCodeForFinalization = mapCountryCodeForFinalization(dynamicCountryCode);
                 try {
                     const managerFromRegistry = await publicClient.readContract({
                         address: currentContracts.indahouseRegistry as `0x${string}`,
                         abi: parseAbi(['function getManager(bytes32) view returns (address)']),
                         functionName: 'getManager',
-                        args: [dynamicCountryCode],
+                        args: [countryCodeForFinalization],
                     }) as `0x${string}`;
                     const zeroAddress = '0x0000000000000000000000000000000000000000';
                     if (!managerFromRegistry || managerFromRegistry === zeroAddress) {
@@ -352,6 +360,7 @@ export function CampaignDetailModal({ campaign, isOpen, onClose }: CampaignDetai
             if (!finState.countryCode) {
                 throw new Error('Missing dynamic countryCode. Please run prerequisites check again.');
             }
+            const countryCodeForFinalization = mapCountryCodeForFinalization(finState.countryCode);
             const investors = Number(finState.investorCount || BigInt(0));
             const totalBatches = finState.totalBatches || 1;
             const hashes: ViemHash[] = [];
@@ -370,7 +379,7 @@ export function CampaignDetailModal({ campaign, isOpen, onClose }: CampaignDetai
                     functionName: 'finalizeAndDistributeCampaignBatched',
                     args: [
                         campaignAddr as `0x${string}`,
-                        finState.countryCode as `0x${string}`,
+                        countryCodeForFinalization,
                         tokenAddr as `0x${string}`,
                         currentContracts.baseToken as `0x${string}`,
                         currentContracts.indaRoot as `0x${string}`,
