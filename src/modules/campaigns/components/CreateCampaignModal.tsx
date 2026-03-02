@@ -6,7 +6,7 @@ import { useCampaigns } from '../hooks/useCampaigns';
 import { encodeFunctionData, parseUnits, decodeEventLog, Abi } from 'viem';
 import { CommitFactoryAbi, ManagerAbi, IndaRootAbi } from '@/config/abis';
 import { currentContracts, CONTRACTS_NETWORK, DEFAULT_CHAIN_ID } from '@/config/contracts';
-import { executeAndWaitForTransaction } from '@/utils/blockchain.utils';
+import { createUserPublicClient, executeAndWaitForTransaction } from '@/utils/blockchain.utils';
 import { usePropertyTokens } from '@/modules/properties/hooks/usePropertyTokens';
 import { toast } from 'sonner';
 import { fetchApi } from '@/utils/api';
@@ -82,6 +82,9 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
 
     if (!isOpen) return null;
 
+    const toCountryCodeBytes32 = (countryCode: string) =>
+        (`0x${countryCode.toUpperCase().split('').map((c) => c.charCodeAt(0).toString(16)).join('').padEnd(64, '0')}` as `0x${string}`);
+
     const addFeeTier = () => {
         setFeeTiers([
             ...feeTiers,
@@ -120,6 +123,49 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
             console.log('📝 Creating campaign on blockchain...');
 
             const chainId = DEFAULT_CHAIN_ID;
+            const publicClient = createUserPublicClient(chainId);
+            const selectedTokenItem = propertyTokensWithNames.find(
+                (item) => item?.token?.id === formData.property_token_id
+            );
+            const selectedCountryCode =
+                selectedTokenItem?.token?.country?.code || selectedTokenItem?.token?.countryCode;
+            if (!selectedCountryCode) {
+                throw new Error('Cannot resolve country code for selected property token.');
+            }
+            const selectedCountryCodeForBlockchain =
+                selectedCountryCode.toUpperCase() === 'ES' ? 'CO' : selectedCountryCode.toUpperCase();
+            const countryCodeBytes32 = toCountryCodeBytes32(selectedCountryCodeForBlockchain);
+            const zeroAddress = '0x0000000000000000000000000000000000000000';
+            const registryAddress = (currentContracts.indahouseRegistry || '').trim() as `0x${string}`;
+            let managerForCampaign = currentContracts.manager as `0x${string}`;
+            if (registryAddress && registryAddress !== zeroAddress) {
+                const managerFromRegistry = await publicClient.readContract({
+                    address: registryAddress,
+                    abi: [
+                        {
+                            type: 'function',
+                            name: 'getManager',
+                            stateMutability: 'view',
+                            inputs: [{ name: 'countryCode', type: 'bytes32' }],
+                            outputs: [{ name: '', type: 'address' }]
+                        }
+                    ] as const,
+                    functionName: 'getManager',
+                    args: [countryCodeBytes32],
+                }) as `0x${string}`;
+                if (!managerFromRegistry || managerFromRegistry === zeroAddress) {
+                    throw new Error(`No manager found in registry for country ${selectedCountryCodeForBlockchain}.`);
+                }
+                managerForCampaign = managerFromRegistry;
+            }
+            if (
+                currentContracts.manager &&
+                currentContracts.manager.toLowerCase() !== managerForCampaign.toLowerCase()
+            ) {
+                toast.warning(
+                    `Manager mismatch detected. Using registry manager ${managerForCampaign} for blockchain country ${selectedCountryCodeForBlockchain} (DB country ${selectedCountryCode.toUpperCase()}).`
+                );
+            }
 
             const startTime = Math.floor(new Date(formData.start_time).getTime() / 1000);
             const commitDeadline = Math.floor(new Date(formData.commit_deadline).getTime() / 1000);
@@ -223,7 +269,7 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
             console.log('📝 Registering campaign in Manager...');
 
             const { hash: registerHash } = await executeAndWaitForTransaction({
-                contractAddress: currentContracts.manager as `0x${string}`,
+                contractAddress: managerForCampaign,
                 abi: ManagerAbi,
                 functionName: 'registerCampaign',
                 args: [campaignAddress as `0x${string}`],
