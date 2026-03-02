@@ -60,7 +60,9 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
             if (!selectedCountry) {
                 throw new Error('Country not found');
             }
-            const countryCodeBytes32 = `0x${selectedCountry.code.toUpperCase()
+            const selectedCountryCode = selectedCountry.code.toUpperCase();
+            const countryCodeForBlockchain = selectedCountryCode === 'ES' ? 'CO' : selectedCountryCode;
+            const countryCodeBytes32 = `0x${countryCodeForBlockchain
                 .split('')
                 .map(c => c.charCodeAt(0).toString(16))
                 .join('')
@@ -68,7 +70,7 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
 
             // Step 0: Ensure admin has a manager certificate for the token's country (reuse if same country, create if new country)
             setLoadingStep('certificate');
-            console.log('📋 Verifying manager certificate for country:', selectedCountry.code);
+            console.log('📋 Verifying manager certificate for country:', countryCodeForBlockchain, '(DB:', selectedCountryCode, ')');
             const publicClient = createUserPublicClient(chainId);
             const walletClient = await createUserWalletClient(chainId);
             const adminAddress = walletClient.account.address;
