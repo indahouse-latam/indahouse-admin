@@ -19,28 +19,28 @@ export const CONTRACTS = {
     },
     // QA: deployment-docs (Amoy 80002, CO) – .deployment_state.json
     polygonAmoy: {
-        indaRoot: "0xA19006C5Fe8baa747317b811c9D127cc762A5878",
+        indaRoot: "0x0F05927c042404c379a244431a174613ee24aBD2",
         baseToken: "0x6C9A47762AAE694067903F4A7aB65E074488c625", // COPS/USDC on Amoy Testnet
         cops: "0x6C9A47762AAE694067903F4A7aB65E074488c625",
         usdc: "0x6C9A47762AAE694067903F4A7aB65E074488c625",
-        InDH: "0x17Bb0DE3999bc44723fEE2D902a334a2C9a2d666",
-        indaProperties: "0xC78c8317Abb52aAA8774f67B98e86A60de92eE65",
+        InDH: "0x60e96961d8Ea2B466Abf632f9380803417D7958A",
+        indaProperties: "0xA1fb58B3CbE67E9B60e4c6E30dd5261c909ff948",
         landOwner: "0x0000000000000000000000000000000000000000",
-        adminAddress: "0x735Ecc70551F4D2d91118a43b30685236128CA72",
-        indaAdmin: "0x735Ecc70551F4D2d91118a43b30685236128CA72",
+        adminAddress: "0x51A89858b4bC1abe979dA8F80Cf09D11b9404623",
+        indaAdmin: "0x51A89858b4bC1abe979dA8F80Cf09D11b9404623",
         indaLock: "0x56e8F6A9C851c7E86469d0a44A47b0f683d0d9fa",
-        capitalGainsVault: "0x0b7ce62c0D18027Da88e18D8c5686128b9f530a3",
-        router: "0x58102e8aa89EF04e45B17f68d0aba3Bbda44fC20",
-        rentVault: "0x0b7ce62c0D18027Da88e18D8c5686128b9f530a3",
+        capitalGainsVault: "0x355558D142ab03C5399F6309a0871bfBf1D661DF",
+        router: "0xbBbf4DAb36d80c1cbC8038791D4D2C855B52e5Ab",
+        rentVault: "0x355558D142ab03C5399F6309a0871bfBf1D661DF",
         sIndh: "0xd2e15302d122a5831beb044ac0894c9789c50cc6",
-        commitFactory: "0xD1072B90160676e124e07Eebc53DfD1f6B4A195f",
-        tokenFactory: "0xB17f3453AC57A0ed646566e92D382bfA258Eb651",
-        distributorProxy: "0xDaA1d43185509d4b10a928Da13dcABB230e8F47D",
-        manager: "0xe48399f36Db6b3591dCb1002b7cFC67091374BB7",
-        PropertyRegistry: "0xe6B032efb17CC1eeE1c3005A0828080f4e1Ebb55",
-        IndaAdminRouter: "0x524BEfC17B4c8BE2d1d31ed7d5E0A5260c83a6b1",
+        commitFactory: "0x936e19bb737e29B50b49c77d6b2Cf77A0572448E",
+        tokenFactory: "0xec81d97712a832b750C016b5e526AAAD6b7CDBEE",
+        distributorProxy: "0xDD9293078fFbFde17fe81Fd7aC07da7407048d78",
+        manager: "0x61D9Ef2E7bE35E7FB1C8838515fa809ec9bbef40",
+        PropertyRegistry: "0x7cAB49CDDe08492B233d0F3Eac50C171d7478b67",
+        IndaAdminRouter: "0x6881c3e6821C71E5e73CB69eb1254B9aa79c933F",
         CommitCampaign: "0x7792634b713Dc0B64607e68AD144c949ed2b3578",
-        indahouseRegistry: "0x338410e6B6445bA93e25C771F1883CdB3EC597e4"
+        indahouseRegistry: "0xAe96188a54017e467fa67C6cA48c2497f22C8B80"
     },
     // PRODUCTION: Polygon Mainnet (137). Sustituir placeholders por direcciones reales o configurar en Vercel.
     polygon: {
