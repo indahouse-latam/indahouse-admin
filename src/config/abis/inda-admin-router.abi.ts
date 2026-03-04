@@ -227,39 +227,6 @@ export const IndaAdminRouterAbi = [
     },
     {
         "type": "function",
-        "name": "finalizeAndDistributeCampaign",
-        "inputs": [
-            {
-                "name": "campaignAddress",
-                "type": "address",
-                "internalType": "address"
-            },
-            {
-                "name": "countryCode",
-                "type": "bytes32",
-                "internalType": "bytes32"
-            },
-            {
-                "name": "individualTokenAddress",
-                "type": "address",
-                "internalType": "address"
-            },
-            {
-                "name": "baseToken",
-                "type": "address",
-                "internalType": "address"
-            },
-            {
-                "name": "indaRootAddress",
-                "type": "address",
-                "internalType": "address"
-            }
-        ],
-        "outputs": [],
-        "stateMutability": "nonpayable"
-    },
-    {
-        "type": "function",
         "name": "finalizeAndDistributeCampaignBatched",
         "inputs": [
             {

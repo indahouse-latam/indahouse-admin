@@ -227,6 +227,16 @@ export default function RolesPage() {
             grantStatus: 'idle',
             selected: false,
         },
+        {
+            id: 'certificate_manager_admin_router',
+            label: 'Certificate Manager (IndaAdminRouter)',
+            description: 'Autorizar fondos y operaciones en IndaAdminRouter',
+            roleHash: ROLE_HASHES.CERTIFICATE_MANAGER_ROLE,
+            contractKey: 'indaAdminRouter',
+            status: 'unchecked',
+            grantStatus: 'idle',
+            selected: false,
+        },
     ]);
 
     const getContractAddress = (key: string): `0x${string}` => {
