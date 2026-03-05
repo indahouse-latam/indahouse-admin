@@ -22,6 +22,19 @@ export const IndaAdminRouterAbi = [
     },
     {
         "type": "function",
+        "name": "CERTIFICATE_MANAGER_ROLE",
+        "inputs": [],
+        "outputs": [
+            {
+                "name": "",
+                "type": "bytes32",
+                "internalType": "bytes32"
+            }
+        ],
+        "stateMutability": "view"
+    },
+    {
+        "type": "function",
         "name": "DEFAULT_ADMIN_ROLE",
         "inputs": [],
         "outputs": [
@@ -934,4 +947,4 @@ export const IndaAdminRouterAbi = [
             }
         ]
     }
-]
+] as const;

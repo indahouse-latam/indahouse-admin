@@ -6,6 +6,19 @@ export const ManagerAbi = [
     },
     {
         "type": "function",
+        "name": "CERTIFICATE_MANAGER_ROLE",
+        "inputs": [],
+        "outputs": [
+            {
+                "name": "",
+                "type": "bytes32",
+                "internalType": "bytes32"
+            }
+        ],
+        "stateMutability": "view"
+    },
+    {
+        "type": "function",
         "name": "DEFAULT_ADMIN_ROLE",
         "inputs": [],
         "outputs": [
@@ -205,6 +218,25 @@ export const ManagerAbi = [
             }
         ],
         "stateMutability": "nonpayable"
+    },
+    {
+        "type": "function",
+        "name": "distributorToToken",
+        "inputs": [
+            {
+                "name": "",
+                "type": "address",
+                "internalType": "address"
+            }
+        ],
+        "outputs": [
+            {
+                "name": "",
+                "type": "address",
+                "internalType": "address"
+            }
+        ],
+        "stateMutability": "view"
     },
     {
         "type": "function",
@@ -1153,6 +1185,11 @@ export const ManagerAbi = [
     },
     {
         "type": "error",
+        "name": "DistributorAlreadyInUse",
+        "inputs": []
+    },
+    {
+        "type": "error",
         "name": "FailedCall",
         "inputs": []
     },
@@ -1253,4 +1290,4 @@ export const ManagerAbi = [
         "name": "TokenNotRegistered",
         "inputs": []
     }
-]
+] as const;
