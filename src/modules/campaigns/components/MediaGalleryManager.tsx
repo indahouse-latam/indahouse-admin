@@ -152,6 +152,8 @@ interface MediaGalleryManagerProps {
   isUploading: boolean;
   isDeleting: boolean;
   mediaType?: MediaType;
+  requiredExactFiles?: number;
+  enforceSingleBatch?: boolean;
 }
 
 export function MediaGalleryManager({
@@ -161,7 +163,9 @@ export function MediaGalleryManager({
   onReorder,
   isUploading,
   isDeleting,
-  mediaType
+  mediaType,
+  requiredExactFiles,
+  enforceSingleBatch = false
 }: MediaGalleryManagerProps) {
   const [localMedia, setLocalMedia] = useState(media);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
@@ -206,6 +210,18 @@ export function MediaGalleryManager({
   };
 
   const handleFilesDrop = (files: File[]) => {
+    if (requiredExactFiles && enforceSingleBatch) {
+      if (localMedia.length > 0) {
+        alert(`Esta sección ya tiene ${localMedia.length} imágenes. Elimina las actuales para volver a subir exactamente ${requiredExactFiles} imágenes.`);
+        return;
+      }
+
+      if (files.length !== requiredExactFiles) {
+        alert(`Debes subir exactamente ${requiredExactFiles} imágenes al mismo tiempo.`);
+        return;
+      }
+    }
+
     const MAX_SIZE_DEFAULT = 10 * 1024 * 1024; // 10MB
     const MAX_SIZE_VIDEO = 30 * 1024 * 1024; // 30MB
     const validFiles: File[] = [];
@@ -324,6 +340,7 @@ export function MediaGalleryManager({
 
   const getUploadTitle = () => {
     if (isUploading) return "Subiendo...";
+    if (requiredExactFiles && enforceSingleBatch) return `Arrastra exactamente ${requiredExactFiles} imágenes aquí`;
     if (mediaType === 'PDF' || mediaType === 'DOCUMENT') return "Arrastra archivos PDF aquí";
     if (mediaType === 'IMAGE') return "Arrastra imágenes aquí";
     if (mediaType === 'VIDEO') return "Arrastra videos aquí";
@@ -331,6 +348,7 @@ export function MediaGalleryManager({
   };
 
   const getFileTypeDescription = () => {
+    if (requiredExactFiles && enforceSingleBatch) return `(.jpg, .png - exactamente ${requiredExactFiles} imágenes, máx 10MB c/u)`;
     if (mediaType === 'PDF' || mediaType === 'DOCUMENT') return "(.pdf - máx 10MB)";
     if (mediaType === 'IMAGE') return "(.jpg, .png - máx 10MB)";
     if (mediaType === 'VIDEO') return "(.mp4 - máx 30MB)";
@@ -342,6 +360,12 @@ export function MediaGalleryManager({
     return 10 * 1024 * 1024;
   };
 
+  const getMaxFiles = () => {
+    if (requiredExactFiles && enforceSingleBatch) return requiredExactFiles;
+    if (mediaType === 'PDF' || mediaType === 'DOCUMENT') return 1;
+    return 15;
+  };
+
   return (
     <div className="space-y-4">
       {pendingFiles.length === 0 && (
@@ -349,6 +373,7 @@ export function MediaGalleryManager({
           title={getUploadTitle()}
           onFilesDrop={handleFilesDrop}
           accept={getAcceptedFileTypes()}
+          maxFiles={getMaxFiles()}
           maxSize={getMaxUploadSize()}
           fileTypeDescription={getFileTypeDescription()}
         />

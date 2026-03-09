@@ -11,13 +11,30 @@ interface PropertyMultimediaSectionProps {
   onComplete?: () => void;
 }
 
+const BEFORE_AFTER_SECTION_KEY = 'before_after_comparisons';
+const BEFORE_AFTER_SECTION = {
+  id: BEFORE_AFTER_SECTION_KEY,
+  sectionKey: BEFORE_AFTER_SECTION_KEY,
+  sectionName: 'Before & After Comparisons',
+  sectionDescription: 'Interactive comparisons showing the difference between two images.',
+  displayOrder: 999,
+  isActive: 1,
+  createdAt: '',
+  updatedAt: ''
+};
+
 export function PropertyMultimediaSection({
   propertyId,
   onComplete
 }: PropertyMultimediaSectionProps) {
   const { data: propertyFeed, isLoading: isFeedLoading, refetch } = usePropertyFeed(propertyId);
   const { data: allSections, isLoading: isSectionsLoading } = usePropertyFeedSections();
-  const { createSection, isCreatingSection } = usePropertyFeedEditor(propertyId);
+  const {
+    createSection,
+    isCreatingSection,
+    createGlobalSection,
+    isCreatingGlobalSection
+  } = usePropertyFeedEditor(propertyId);
 
   if (!propertyId) {
     return (
@@ -45,14 +62,53 @@ export function PropertyMultimediaSection({
   const sectionsWithoutContent = feedData.filter(item => item.content === null && item.section.isActive === 1);
 
   const existingSections = sectionsWithContent;
-  const availableSections = sectionsWithoutContent.map(item => item.section);
+  const baseAvailableSections = sectionsWithoutContent.map(item => item.section);
+  const hasBeforeAfterInAvailable = baseAvailableSections.some(
+    (section) => section.sectionKey === BEFORE_AFTER_SECTION_KEY
+  );
+  const hasBeforeAfterInExisting = existingSections.some(
+    (item) => item.section.sectionKey === BEFORE_AFTER_SECTION_KEY
+  );
+  const availableSections = !hasBeforeAfterInAvailable && !hasBeforeAfterInExisting
+    ? [...baseAvailableSections, BEFORE_AFTER_SECTION]
+    : baseAvailableSections;
 
   const handleCreateSection = (sectionKey: string) => {
-    createSection(
-      { sectionKey, payload: { isPublished: 1 } },
+    const createPropertySection = () => {
+      createSection(
+        { sectionKey, payload: { isPublished: 1 } },
+        {
+          onSuccess: () => {
+            refetch();
+          }
+        }
+      );
+    };
+
+    if (sectionKey !== BEFORE_AFTER_SECTION_KEY) {
+      createPropertySection();
+      return;
+    }
+
+    const alreadyExistsInDatabase = (allSections ?? []).some(
+      (section) => section.sectionKey === BEFORE_AFTER_SECTION_KEY
+    );
+
+    if (alreadyExistsInDatabase) {
+      createPropertySection();
+      return;
+    }
+
+    createGlobalSection(
+      {
+        section_key: BEFORE_AFTER_SECTION_KEY,
+        section_name: 'Before & After Comparisons',
+        section_description: 'Interactive comparisons showing the difference between two images.',
+        is_active: true
+      },
       {
         onSuccess: () => {
-          refetch();
+          createPropertySection();
         }
       }
     );
@@ -105,7 +161,7 @@ export function PropertyMultimediaSection({
                   type="button"
                   key={section.id}
                   onClick={() => handleCreateSection(section.sectionKey)}
-                  disabled={isCreatingSection}
+                  disabled={isCreatingSection || isCreatingGlobalSection}
                   className="p-4 bg-secondary/30 border-2 border-dashed border-border rounded-xl hover:border-primary hover:bg-secondary/50 transition-all text-left group disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <div className="flex items-start gap-3">

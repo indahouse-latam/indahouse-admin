@@ -15,6 +15,7 @@ interface SectionEditorProps {
 
 export function SectionEditor({ section, content, propertyId, onUpdate }: SectionEditorProps) {
   const [localMedia, setLocalMedia] = useState(content.media);
+  const isBeforeAfterSection = section.sectionKey === 'before_after_comparisons';
   const {
     uploadMedia,
     isUploading,
@@ -131,7 +132,9 @@ export function SectionEditor({ section, content, propertyId, onUpdate }: Sectio
         onReorder={handleReorder}
         isUploading={isUploading}
         isDeleting={isDeleting}
-        mediaType={getMediaTypeFromSectionKey(section.sectionKey)}
+        mediaType={isBeforeAfterSection ? 'IMAGE' : getMediaTypeFromSectionKey(section.sectionKey)}
+        requiredExactFiles={isBeforeAfterSection ? 2 : undefined}
+        enforceSingleBatch={isBeforeAfterSection}
       />
     </div>
   );
