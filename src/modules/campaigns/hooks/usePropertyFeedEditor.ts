@@ -10,6 +10,22 @@ import { toast } from 'sonner';
 export function usePropertyFeedEditor(propertyId: string | null) {
   const queryClient = useQueryClient();
 
+  const createGlobalSectionMutation = useMutation({
+    mutationFn: (payload: {
+      section_key: string;
+      section_name: string;
+      section_description?: string;
+      is_active: boolean;
+    }) => PropertyFeedService.createGlobalSection(payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['feed-sections'] });
+      toast.success('Sección base creada exitosamente');
+    },
+    onError: (error: Error) => {
+      toast.error(`Error al crear sección base: ${error.message}`);
+    }
+  });
+
   const uploadMediaMutation = useMutation({
     mutationFn: ({
       files,
@@ -106,6 +122,8 @@ export function usePropertyFeedEditor(propertyId: string | null) {
   });
 
   return {
+    createGlobalSection: createGlobalSectionMutation.mutate,
+    isCreatingGlobalSection: createGlobalSectionMutation.isPending,
     uploadMedia: uploadMediaMutation.mutate,
     isUploading: uploadMediaMutation.isPending,
     deleteMedia: deleteMediaMutation.mutate,

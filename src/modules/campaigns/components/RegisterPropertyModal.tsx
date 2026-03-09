@@ -20,6 +20,26 @@ interface RegisterPropertyModalProps {
 
 type TabType = 'general' | 'details' | 'multimedia' | 'location' | 'risk' | 'investment';
 
+interface Landowner {
+    id: string | number;
+    name?: string;
+    lastname?: string;
+    email?: string;
+}
+
+function getLandownerLabel(user: Landowner): string {
+    const fullName = [user?.name, user?.lastname].filter(Boolean).join(' ').trim();
+    return `${fullName || 'Sin nombre'} (${user?.email || 'Sin email'})`;
+}
+
+function landownerMatchesSearch(user: Landowner, searchTerm: string): boolean {
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+    if (!normalizedSearch) return true;
+
+    const searchableText = `${user?.name || ''} ${user?.lastname || ''} ${user?.email || ''}`.toLowerCase();
+    return searchableText.includes(normalizedSearch);
+}
+
 const INITIAL_FORM_DATA = {
     user_id: '',
     name_reference: '',
@@ -60,14 +80,20 @@ const INITIAL_FORM_DATA = {
 export function RegisterPropertyModal({ isOpen, onClose }: RegisterPropertyModalProps) {
     const { data: usersResponse } = useUsers();
     const { builders, isLoading: buildersLoading } = usePropertyBuilders();
-    const users = usersResponse || [];
+    const users: Landowner[] = usersResponse || [];
     const queryClient = useQueryClient();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [activeTab, setActiveTab] = useState<TabType>('general');
     const [createdPropertyId, setCreatedPropertyId] = useState<string | null>(null);
     const [propertyData, setPropertyData] = useState<any>(null);
+    const [landownerSearch, setLandownerSearch] = useState('');
 
     const [formData, setFormData] = useState(INITIAL_FORM_DATA);
+    const selectedLandowner = users.find((user) => String(user.id) === formData.user_id);
+    const filteredLandowners = users.filter((user) => landownerMatchesSearch(user, landownerSearch));
+    const visibleLandowners = selectedLandowner && !filteredLandowners.some((user) => String(user.id) === String(selectedLandowner.id))
+        ? [selectedLandowner, ...filteredLandowners]
+        : filteredLandowners;
 
     if (!isOpen) return null;
 
@@ -77,6 +103,7 @@ export function RegisterPropertyModal({ isOpen, onClose }: RegisterPropertyModal
         setPropertyData(null);
         setActiveTab('general');
         setIsSubmitting(false);
+        setLandownerSearch('');
         onClose();
     };
 
@@ -263,6 +290,13 @@ export function RegisterPropertyModal({ isOpen, onClose }: RegisterPropertyModal
                             <label className="text-xs font-bold uppercase tracking-widest text-indigo-400 block mb-2">
                                 Landowner (Propietario)
                             </label>
+                            <input
+                                type="text"
+                                className="w-full bg-secondary-100 border border-secondary-300 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                                placeholder="Buscar por nombre o email..."
+                                value={landownerSearch}
+                                onChange={(e) => setLandownerSearch(e.target.value)}
+                            />
                             <select
                                 className="w-full bg-secondary-100 border border-secondary-300 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                                 value={formData.user_id}
@@ -270,10 +304,13 @@ export function RegisterPropertyModal({ isOpen, onClose }: RegisterPropertyModal
                                 required
                             >
                                 <option value="" disabled>Seleccione el propietario legal...</option>
-                                {users.map((user: any) => (
-                                    <option key={user.id} value={user.id}>{user.name} {user.lastname} ({user.email})</option>
+                                {visibleLandowners.map((user) => (
+                                    <option key={String(user.id)} value={String(user.id)}>{getLandownerLabel(user)}</option>
                                 ))}
                             </select>
+                            {visibleLandowners.length === 0 && (
+                                <p className="text-xs text-muted-foreground">No se encontraron propietarios con ese criterio.</p>
+                            )}
                         </div>
                     )}
 

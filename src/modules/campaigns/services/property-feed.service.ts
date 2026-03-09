@@ -9,6 +9,19 @@ import type {
 } from '../types/property-feed.types';
 
 export class PropertyFeedService {
+  static async createGlobalSection(payload: {
+    section_key: string;
+    section_name: string;
+    section_description?: string;
+    is_active: boolean;
+  }): Promise<PropertyFeedSection> {
+    const response = await fetchApi('/feed/sections', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+    return response.data || response;
+  }
+
   static async getPropertyFeed(propertyId: string): Promise<PropertyFeed> {
     const response = await fetchApi(`/properties/${propertyId}/feed`);
     return response.data || response;

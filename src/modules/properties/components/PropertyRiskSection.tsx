@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Loader2, ShieldAlert, Trash2 } from 'lucide-react';
-import { usePropertyRisk, RISK_OPTIONS, RiskType } from '../hooks/usePropertyRisk';
+import { usePropertyRisk, RISK_OPTIONS, RiskType, STRATEGY_FOR_RISK, PropertyRiskEnum } from '../hooks/usePropertyRisk';
 
 interface PropertyRiskSectionProps {
   readonly propertyId: string | null;
@@ -26,15 +26,6 @@ const GOAL_LABELS: Record<string, string> = {
   institutional_exit: 'Salida institucional',
 };
 
-const STRATEGY_FOR_RISK: Record<RiskType, string> = {
-  conservative: 'institutional_hard_asset',
-  venture: 'exclusive_build',
-  balanced: 'yield_optimizer',
-  moderate_short: 'pre_completion_value',
-  moderate: 'value_add_hold',
-  balanced_long: 'institutional_bundling',
-};
-
 function getRiskOptionLabel(riskValue: RiskType): string {
   const riskLabel = RISK_OPTIONS.find((option) => option.value === riskValue)?.label || riskValue;
   const strategyLabel = STRATEGY_LABELS[STRATEGY_FOR_RISK[riskValue]] || STRATEGY_FOR_RISK[riskValue];
@@ -43,11 +34,8 @@ function getRiskOptionLabel(riskValue: RiskType): string {
 
 export function PropertyRiskSection({ propertyId }: PropertyRiskSectionProps) {
   const { risk, isLoading, createRisk, isCreating, updateRisk, isUpdating, deleteRisk, isDeleting } = usePropertyRisk(propertyId);
-  const [selectedRisk, setSelectedRisk] = useState<RiskType>('balanced');
-
-  useEffect(() => {
-    if (risk?.risk) setSelectedRisk(risk.risk);
-  }, [risk?.risk]);
+  const [draftRisk, setDraftRisk] = useState<RiskType | null>(null);
+  const selectedRisk = draftRisk ?? risk?.risk ?? PropertyRiskEnum.BALANCED;
 
   if (!propertyId) {
     return (
@@ -81,7 +69,7 @@ export function PropertyRiskSection({ propertyId }: PropertyRiskSectionProps) {
             title="Seleccionar tipo de riesgo"
             className="w-full bg-secondary-100 border border-secondary-300 rounded-lg px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
             value={selectedRisk}
-            onChange={(e) => setSelectedRisk(e.target.value as RiskType)}
+            onChange={(e) => setDraftRisk(e.target.value as RiskType)}
           >
             {RISK_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>{getRiskOptionLabel(opt.value)}</option>
@@ -100,6 +88,8 @@ export function PropertyRiskSection({ propertyId }: PropertyRiskSectionProps) {
       </div>
     );
   }
+
+  const horizonEndLabel = risk.horizonEndYears == null ? '∞' : `${risk.horizonEndYears} años`;
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 max-w-lg mx-auto space-y-6">
@@ -120,7 +110,7 @@ export function PropertyRiskSection({ propertyId }: PropertyRiskSectionProps) {
         <div className="p-3 rounded-lg bg-secondary/30 border border-border col-span-2">
           <p className="text-[10px] font-bold uppercase text-muted-foreground mb-1">Horizonte</p>
           <p className="text-sm font-medium">
-            {risk.horizonStartYears} - {risk.horizonEndYears != null ? `${risk.horizonEndYears} años` : '∞'}
+            {risk.horizonStartYears} - {horizonEndLabel}
           </p>
         </div>
       </div>
@@ -132,7 +122,7 @@ export function PropertyRiskSection({ propertyId }: PropertyRiskSectionProps) {
           title="Cambiar tipo de riesgo"
           className="w-full bg-secondary-100 border border-secondary-300 rounded-lg px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
           value={selectedRisk}
-          onChange={(e) => setSelectedRisk(e.target.value as RiskType)}
+          onChange={(e) => setDraftRisk(e.target.value as RiskType)}
         >
           {RISK_OPTIONS.map((opt) => (
             <option key={opt.value} value={opt.value}>{getRiskOptionLabel(opt.value)}</option>

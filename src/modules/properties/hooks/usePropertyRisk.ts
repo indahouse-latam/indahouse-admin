@@ -2,7 +2,34 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchApi } from '@/utils/api';
 import { toast } from 'sonner';
 
-export type RiskType = 'moderate_short' | 'balanced' | 'venture' | 'moderate' | 'balanced_long' | 'conservative';
+export enum PropertyRiskEnum {
+  MODERATE_SHORT = 'moderate_short',
+  BALANCED = 'balanced',
+  VENTURE = 'venture',
+  MODERATE = 'moderate',
+  BALANCED_LONG = 'balanced_long',
+  CONSERVATIVE = 'conservative',
+}
+
+export enum InvestmentStrategyEnum {
+  INSTITUTIONAL_HARD_ASSET = 'institutional_hard_asset',
+  EXCLUSIVE_BUILD = 'exclusive_build',
+  YIELD_OPTIMIZER = 'yield_optimizer',
+  PRE_COMPLETION_VALUE = 'pre_completion_value',
+  VALUE_ADD_HOLD = 'value_add_hold',
+  INSTITUTIONAL_BUNDLING = 'institutional_bundling',
+}
+
+export enum PrimaryGoalEnum {
+  APPRECIATION_PRESTIGE = 'appreciation_prestige',
+  GROSS_APPRECIATION = 'gross_appreciation',
+  MONTHLY_INCOME = 'monthly_income',
+  ARBITRAGE_LIQUIDITY = 'arbitrage_liquidity',
+  OPERATIONAL_GROWTH = 'operational_growth',
+  INSTITUTIONAL_EXIT = 'institutional_exit',
+}
+
+export type RiskType = PropertyRiskEnum;
 
 export interface PropertyRisk {
   id: string;
@@ -17,27 +44,57 @@ export interface PropertyRisk {
 }
 
 export const RISK_OPTIONS: { value: RiskType; label: string }[] = [
-  { value: 'conservative', label: 'Conservador' },
-  { value: 'moderate_short', label: 'Moderado Corto' },
-  { value: 'moderate', label: 'Moderado' },
-  { value: 'balanced', label: 'Balanceado' },
-  { value: 'balanced_long', label: 'Balanceado Largo' },
-  { value: 'venture', label: 'Venture' },
+  { value: PropertyRiskEnum.MODERATE_SHORT, label: 'Corto (1-2y)' },
+  { value: PropertyRiskEnum.BALANCED, label: 'Corto/Medio (1-5y)' },
+  { value: PropertyRiskEnum.VENTURE, label: 'Mediano (2-4y)' },
+  { value: PropertyRiskEnum.MODERATE, label: 'Mediano (3-5y)' },
+  { value: PropertyRiskEnum.BALANCED_LONG, label: 'Medio/Largo (4y+)' },
+  { value: PropertyRiskEnum.CONSERVATIVE, label: 'Largo plazo (5y+)' },
 ];
+
+export const STRATEGY_FOR_RISK: Record<PropertyRiskEnum, InvestmentStrategyEnum> = {
+  [PropertyRiskEnum.CONSERVATIVE]: InvestmentStrategyEnum.INSTITUTIONAL_HARD_ASSET,
+  [PropertyRiskEnum.VENTURE]: InvestmentStrategyEnum.EXCLUSIVE_BUILD,
+  [PropertyRiskEnum.BALANCED]: InvestmentStrategyEnum.YIELD_OPTIMIZER,
+  [PropertyRiskEnum.MODERATE_SHORT]: InvestmentStrategyEnum.PRE_COMPLETION_VALUE,
+  [PropertyRiskEnum.MODERATE]: InvestmentStrategyEnum.VALUE_ADD_HOLD,
+  [PropertyRiskEnum.BALANCED_LONG]: InvestmentStrategyEnum.INSTITUTIONAL_BUNDLING,
+};
 
 /** Mapea la respuesta del API (snake_case) al tipo del admin (camelCase). */
 function mapRiskFromApi(raw: Record<string, unknown> | null): PropertyRisk | null {
   if (!raw || typeof raw !== 'object') return null;
+
+  const payload =
+    raw.data && typeof raw.data === 'object'
+      ? (raw.data as Record<string, unknown>)
+      : raw;
+
+  const id = payload.id;
+  if (typeof id !== 'string' || !id) return null;
+
+  const propertyId = payload.propertyId ?? payload.property_id;
+  const strategy = payload.strategy;
+  const primaryGoal = payload.primaryGoal ?? payload.primary_goal;
+  const horizonStartYears = payload.horizonStartYears ?? payload.horizon_start_years;
+  const horizonEndYears = payload.horizonEndYears ?? payload.horizon_end_years;
+  const createdAt = payload.createdAt ?? payload.created_at;
+  const updatedAt = payload.updatedAt ?? payload.updated_at;
+
+  const safeRisk =
+    typeof payload.risk === 'string' ? (payload.risk as RiskType) : PropertyRiskEnum.BALANCED;
+  const parsedHorizonEndYears = horizonEndYears == null ? null : Number(horizonEndYears);
+
   return {
-    id: String(raw.id),
-    propertyId: String(raw.property_id),
-    risk: (raw.risk as RiskType) || 'balanced',
-    strategy: String(raw.strategy ?? ''),
-    primaryGoal: String(raw.primary_goal ?? ''),
-    horizonStartYears: Number(raw.horizon_start_years ?? 0),
-    horizonEndYears: raw.horizon_end_years != null ? Number(raw.horizon_end_years) : null,
-    createdAt: String(raw.created_at ?? ''),
-    updatedAt: String(raw.updated_at ?? ''),
+    id,
+    propertyId: typeof propertyId === 'string' ? propertyId : '',
+    risk: safeRisk,
+    strategy: typeof strategy === 'string' ? strategy : '',
+    primaryGoal: typeof primaryGoal === 'string' ? primaryGoal : '',
+    horizonStartYears: Number(horizonStartYears ?? 0),
+    horizonEndYears: parsedHorizonEndYears,
+    createdAt: typeof createdAt === 'string' ? createdAt : '',
+    updatedAt: typeof updatedAt === 'string' ? updatedAt : '',
   };
 }
 
