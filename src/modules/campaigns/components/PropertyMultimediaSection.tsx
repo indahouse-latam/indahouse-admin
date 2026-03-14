@@ -5,6 +5,7 @@ import { usePropertyFeed, usePropertyFeedSections } from '../hooks/usePropertyFe
 import { usePropertyFeedEditor } from '../hooks/usePropertyFeedEditor';
 import { SectionEditor } from './SectionEditor';
 import { FinancialDocumentsSection } from './FinancialDocumentsSection';
+import { usePropertyRisk, InvestmentStrategyEnum } from '@/modules/properties/hooks/usePropertyRisk';
 
 interface PropertyMultimediaSectionProps {
   propertyId: string | null;
@@ -29,6 +30,8 @@ export function PropertyMultimediaSection({
 }: PropertyMultimediaSectionProps) {
   const { data: propertyFeed, isLoading: isFeedLoading, refetch } = usePropertyFeed(propertyId);
   const { data: allSections, isLoading: isSectionsLoading } = usePropertyFeedSections();
+  const { risk } = usePropertyRisk(propertyId);
+  const requireEvenFiles = risk?.strategy === InvestmentStrategyEnum.VALUE_ADD_HOLD;
   const {
     createSection,
     isCreatingSection,
@@ -143,6 +146,7 @@ export function PropertyMultimediaSection({
                 content={item.content!}
                 propertyId={propertyId}
                 onUpdate={refetch}
+                requireEvenFiles={requireEvenFiles}
               />
             ))}
         </div>
