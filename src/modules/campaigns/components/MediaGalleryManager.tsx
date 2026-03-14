@@ -154,6 +154,7 @@ interface MediaGalleryManagerProps {
   mediaType?: MediaType;
   requiredExactFiles?: number;
   enforceSingleBatch?: boolean;
+  requireEvenFiles?: boolean;
 }
 
 export function MediaGalleryManager({
@@ -165,7 +166,8 @@ export function MediaGalleryManager({
   isDeleting,
   mediaType,
   requiredExactFiles,
-  enforceSingleBatch = false
+  enforceSingleBatch = false,
+  requireEvenFiles
 }: MediaGalleryManagerProps) {
   const [localMedia, setLocalMedia] = useState(media);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
@@ -218,6 +220,14 @@ export function MediaGalleryManager({
 
       if (files.length !== requiredExactFiles) {
         alert(`Debes subir exactamente ${requiredExactFiles} imágenes al mismo tiempo.`);
+        return;
+      }
+    }
+
+    if (requireEvenFiles) {
+      const totalAfterUpload = localMedia.length + files.length;
+      if (totalAfterUpload % 2 !== 0) {
+        alert(`Debes subir imágenes de manera que el total sea par. Actualmente hay ${localMedia.length}. Sube un número ${localMedia.length % 2 === 0 ? 'par' : 'impar'} de archivos.`);
         return;
       }
     }
@@ -342,17 +352,17 @@ export function MediaGalleryManager({
     if (isUploading) return "Subiendo...";
     if (requiredExactFiles && enforceSingleBatch) return `Arrastra exactamente ${requiredExactFiles} imágenes aquí`;
     if (mediaType === 'PDF' || mediaType === 'DOCUMENT') return "Arrastra archivos PDF aquí";
-    if (mediaType === 'IMAGE') return "Arrastra imágenes aquí";
+    if (mediaType === 'IMAGE') return requireEvenFiles ? "Arrastra imágenes aquí (número par requerido)" : "Arrastra imágenes aquí";
     if (mediaType === 'VIDEO') return "Arrastra videos aquí";
-    return "Arrastra imágenes o videos aquí";
+    return requireEvenFiles ? "Arrastra imágenes o videos aquí (número par requerido)" : "Arrastra imágenes o videos aquí";
   };
 
   const getFileTypeDescription = () => {
     if (requiredExactFiles && enforceSingleBatch) return `(.jpg, .png - exactamente ${requiredExactFiles} imágenes, máx 10MB c/u)`;
     if (mediaType === 'PDF' || mediaType === 'DOCUMENT') return "(.pdf - máx 10MB)";
-    if (mediaType === 'IMAGE') return "(.jpg, .png - máx 10MB)";
+    if (mediaType === 'IMAGE') return requireEvenFiles ? "(.jpg, .png - máx 10MB) - total par requerido" : "(.jpg, .png - máx 10MB)";
     if (mediaType === 'VIDEO') return "(.mp4 - máx 30MB)";
-    return "(.jpg, .png máx 10MB | .mp4 máx 30MB)";
+    return requireEvenFiles ? "(.jpg, .png máx 10MB | .mp4 máx 30MB) - total par requerido" : "(.jpg, .png máx 10MB | .mp4 máx 30MB)";
   };
 
   const getMaxUploadSize = () => {
