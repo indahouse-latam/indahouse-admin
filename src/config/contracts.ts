@@ -34,6 +34,7 @@ export const CONTRACTS = {
         rentVault: "0x355558D142ab03C5399F6309a0871bfBf1D661DF",
         sIndh: "0xd2e15302d122a5831beb044ac0894c9789c50cc6",
         commitFactory: "0x936e19bb737e29B50b49c77d6b2Cf77A0572448E",
+        poolFactory: "0x15cC4ed8E202D81B20f8b7B82dC5A95d2Cd1e5b2",
         tokenFactory: "0xec81d97712a832b750C016b5e526AAAD6b7CDBEE",
         distributorProxy: "0xDD9293078fFbFde17fe81Fd7aC07da7407048d78",
         manager: "0x61D9Ef2E7bE35E7FB1C8838515fa809ec9bbef40",
