@@ -50,7 +50,7 @@ interface RoleOption {
     label: string;
     description: string;
     roleHash: `0x${string}`;
-    contractKey: 'indaRoot' | 'propertyRegistry' | 'indaAdminRouter' | 'manager';
+    contractKey: 'indaRoot' | 'propertyRegistry' | 'indaAdminRouter' | 'manager' | 'commitFactory';
     status: RoleStatus;
     grantStatus: GrantStatus;
     selected: boolean;
@@ -218,6 +218,16 @@ export default function RolesPage() {
             selected: false,
         },
         {
+            id: 'operator_commit_factory',
+            label: 'Operator (CommitFactory)',
+            description: 'Permisos de operador para createCampaign en CommitFactory',
+            roleHash: ROLE_HASHES.OPERATOR_ROLE,
+            contractKey: 'commitFactory',
+            status: 'unchecked',
+            grantStatus: 'idle',
+            selected: false,
+        },
+        {
             id: 'certificate_manager',
             label: 'Certificate Manager (Manager)',
             description: 'Crear CMDs y mint de NFTs de certificados',
@@ -249,6 +259,8 @@ export default function RolesPage() {
                 return currentContracts.IndaAdminRouter as `0x${string}`;
             case 'manager':
                 return currentContracts.manager as `0x${string}`;
+            case 'commitFactory':
+                return currentContracts.commitFactory as `0x${string}`;
             default:
                 throw new Error(`Unknown contract key: ${key}`);
         }
@@ -264,6 +276,8 @@ export default function RolesPage() {
                 return IndaAdminRouterAbi;
             case 'manager':
                 return ManagerAbi;
+            case 'commitFactory':
+                return CommitFactoryAbi;
             default:
                 return IndaRootAbi;
         }
