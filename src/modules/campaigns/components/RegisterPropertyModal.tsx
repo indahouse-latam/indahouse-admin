@@ -43,6 +43,7 @@ function landownerMatchesSearch(user: Landowner, searchTerm: string): boolean {
 const INITIAL_FORM_DATA = {
     user_id: '',
     name_reference: '',
+    render_url: '',
     description: '',
     price: '',
     valuation: '',
@@ -121,6 +122,7 @@ export function RegisterPropertyModal({ isOpen, onClose }: RegisterPropertyModal
             const payload = {
                 user_id: formData.user_id,
                 name_reference: formData.name_reference,
+                ...(formData.render_url.trim() ? { render_url: formData.render_url.trim() } : {}),
                 description: formData.description,
                 price: Number.parseFloat(formData.price),
                 valuation: Number.parseFloat(formData.valuation),
@@ -382,6 +384,17 @@ export function RegisterPropertyModal({ isOpen, onClose }: RegisterPropertyModal
                                             onChange={(e) => setFormData({ ...formData, buyback_time: e.target.value })}
                                         />
                                     </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-bold uppercase text-muted-foreground">Render URL (Opcional)</label>
+                                    <input
+                                        type="url"
+                                        className="w-full bg-secondary-100 border border-secondary-300 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
+                                        placeholder="Ej: https://meet.google.com/oog-zpga-wqe"
+                                        value={formData.render_url}
+                                        onChange={(e) => setFormData({ ...formData, render_url: e.target.value })}
+                                    />
                                 </div>
 
                                 <div className="space-y-2">

@@ -23,6 +23,8 @@ export interface Property {
   userId?: string;
   name_reference: string;
   nameReference?: string;
+  render_url?: string;
+  renderUrl?: string;
   description?: string;
   price: number | string;
   valuation: number | string;
@@ -53,6 +55,7 @@ interface PropertiesResponse {
 interface UpdatePropertyPayload {
   id: string;
   name_reference: string;
+  render_url?: string;
   description?: string;
   price: number;
   valuation: number;
@@ -72,6 +75,7 @@ const normalizeProperty = (prop: any): Property => {
   return {
     ...prop,
     name_reference: prop.nameReference || prop.name_reference,
+    render_url: prop.renderUrl || prop.render_url,
     user_id: prop.userId || prop.user_id,
     property_type: prop.propertyType || prop.property_type,
     built_time: prop.builtTime || prop.built_time,
