@@ -24,7 +24,8 @@ import {
 import { checkHasRole, executeContractWriteWithKey, waitForTransaction, createUserPublicClient } from "@/utils/blockchain.utils";
 import { currentContracts, DEFAULT_CHAIN_ID } from "@/config/contracts";
 import { Abi, isAddress } from "viem";
-import { getPrivateKeyFromLocalStorage } from "@/utils/nyx-wallet.ultils";
+import { getPrivateKeyFromSession } from "@/utils/nyx-wallet.ultils";
+import { useAuth } from "@/providers/AuthProvider";
 
 // Contract addresses según entorno (QA = Polygon Amoy, Production = Polygon)
 const POLYGON_CONTRACTS = {
@@ -73,6 +74,7 @@ interface AdminTransferContract {
 
 
 export default function RolesPage() {
+    const { user } = useAuth();
     // Tab state
     const [activeTab, setActiveTab] = useState<'admin' | 'roles'>('admin');
 
@@ -321,17 +323,12 @@ export default function RolesPage() {
 
     const autoDetectAdminKey = async (address: string) => {
         try {
-            const localstorageUser = localStorage.getItem('admin_user');
-            if (!localstorageUser) return;
+            const userAddress = user?.walletAddress;
+            if (!userAddress || userAddress.toLowerCase() !== address.toLowerCase()) return;
 
-            const user = JSON.parse(localstorageUser);
-            const userAddress = user.walletAddress;
-
-            if (userAddress && userAddress.toLowerCase() === address.toLowerCase()) {
-                const privateKey = await getPrivateKeyFromLocalStorage();
-                setAdminKey(privateKey);
-                setAutoDetectedAdminKey(true);
-            }
+            const pk = await getPrivateKeyFromSession();
+            setAdminKey(pk);
+            setAutoDetectedAdminKey(true);
         } catch (err) {
             console.error('Could not auto-detect admin key:', err);
         }
