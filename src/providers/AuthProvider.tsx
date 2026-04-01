@@ -91,7 +91,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async (sessionToken: string) => {
       const result = await fetchApi("/auth/login", {
         method: "POST",
-        body: JSON.stringify({ sessionToken, userType: "ADMIN" }),
+        body: JSON.stringify({ sessionToken, userType: "CLIENT" }),
       });
 
       if (result.code === "USER-200" && result.user) {
