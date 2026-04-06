@@ -10,7 +10,7 @@ import { createUserPublicClient, executeAndWaitForTransaction } from '@/utils/bl
 import { usePropertyTokens } from '@/modules/properties/hooks/usePropertyTokens';
 import { toast } from 'sonner';
 import { fetchApi } from '@/utils/api';
-import { LocalStorageUser } from '@/providers/AuthProvider';
+import { useAuth } from '@/providers/AuthProvider';
 
 interface FeeTier {
     tier_order: number;
@@ -26,10 +26,8 @@ interface CreateCampaignModalProps {
 export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProps) {
     const { data: propertyTokens, isLoading: isLoadingTokens } = usePropertyTokens();
     const { createCampaign } = useCampaigns();
+    const { user } = useAuth();
 
-    const localstorageUser = localStorage.getItem('admin_user');
-    const user: LocalStorageUser = JSON.parse(localstorageUser || '{}');
-    
     const [isLoading, setIsLoading] = useState(false);
     const [loadingStep, setLoadingStep] = useState<'creating' | 'confirming' | 'registering' | 'whitelisting' | 'saving' | null>(null);
     const [propertyTokensWithNames, setPropertyTokensWithNames] = useState<Array<{
@@ -43,7 +41,7 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
         campaign_type: 1, // Default: SINGLE_PROPERTY
         indaRoot: currentContracts.indaRoot,
         baseToken: currentContracts.usdc,
-        campaignOwner: user.walletAddress as `0x${string}` || '',
+        campaignOwner: (user?.walletAddress as `0x${string}`) || '',
         token_address: '',
         min_cap: '100',
         max_cap: '500',
@@ -79,6 +77,14 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
 
         setPropertyTokensWithNames(tokensWithNames);
     }, [propertyTokens]);
+
+    useEffect(() => {
+        if (!user?.walletAddress) return;
+        setFormData((prev) => ({
+            ...prev,
+            campaignOwner: user.walletAddress as `0x${string}`,
+        }));
+    }, [user?.walletAddress]);
 
     if (!isOpen) return null;
 

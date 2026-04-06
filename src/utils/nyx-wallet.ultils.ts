@@ -1,18 +1,21 @@
-import { LocalStorageUser } from "@/providers/AuthProvider";
+import { fetchWalletCredentials } from "@/utils/auth-session";
 
-export const getPrivateKey = async (walletId: string, token: string): Promise<string> => {
+export const getPrivateKey = async (
+  walletId: string,
+  token: string,
+): Promise<string> => {
   try {
     const response = await fetch(`/api/wallet-proxy/transaction-solver`, {
-      method: 'POST',
+      method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({ walletId }),
     });
 
     if (!response.ok) {
-      throw new Error('Failed to fetch secure credentials');
+      throw new Error("Failed to fetch secure credentials");
     }
 
     const data = await response.json();
@@ -20,18 +23,16 @@ export const getPrivateKey = async (walletId: string, token: string): Promise<st
 
     return decodedKey;
   } catch (error) {
-    console.error('Error fetching secure credentials:', error);
+    console.error("Error fetching secure credentials:", error);
     throw error;
   }
 };
 
-export const getPrivateKeyFromLocalStorage = async (): Promise<string> => {
-  const localstorageUser = localStorage.getItem('admin_user');
-  const user: LocalStorageUser = JSON.parse(localstorageUser || '{}');
-  const token = user.token;
-  const privateKey = await getPrivateKey(user?.walletId, token);
-  console.log('privateKey', privateKey);
+export async function getPrivateKeyFromSession(): Promise<string> {
+  const { walletId, token } = await fetchWalletCredentials();
+  const privateKey = await getPrivateKey(walletId, token);
   return privateKey;
 }
 
-
+/** @deprecated Usar getPrivateKeyFromSession */
+export const getPrivateKeyFromLocalStorage = getPrivateKeyFromSession;

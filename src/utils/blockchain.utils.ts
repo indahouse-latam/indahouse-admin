@@ -2,7 +2,7 @@ import { createWalletClient, createPublicClient, http, type Hash, type Transacti
 import { privateKeyToAccount } from 'viem/accounts';
 import { baseSepolia, base, polygonAmoy, polygon } from 'viem/chains';
 import { getPrivateKey } from './nyx-wallet.ultils';
-import { LocalStorageUser } from '@/providers/AuthProvider';
+import { fetchWalletCredentials } from '@/utils/auth-session';
 import { DEFAULT_CHAIN_ID } from '@/config/contracts';
 
 // Get RPC URL based on chain
@@ -22,16 +22,11 @@ const getChain = (chainId: number) => {
 };
 
 /**
- * Creates a wallet client using the user's private key from localStorage
+ * Crea el wallet client con la clave vía sesión API (cookie + /auth/wallet-token).
  */
 export const createUserWalletClient = async (chainId: number = DEFAULT_CHAIN_ID) => {
-    const localstorageUser = localStorage.getItem('admin_user');
-    if (!localstorageUser) {
-        throw new Error('User not authenticated');
-    }
-
-    const user: LocalStorageUser = JSON.parse(localstorageUser);
-    const privateKey = await getPrivateKey(user.walletId, user.token);
+    const { walletId, token } = await fetchWalletCredentials();
+    const privateKey = await getPrivateKey(walletId, token);
 
     if (!privateKey.startsWith('0x')) {
         throw new Error('Invalid private key format');
