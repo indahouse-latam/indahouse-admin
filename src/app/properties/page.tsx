@@ -5,14 +5,15 @@ import { AdminLayout } from "@/components/AdminLayout";
 import { DataTable } from "@/components/DataTable";
 import { useProperties, Property } from "@/modules/properties/hooks/useProperties";
 import { EditPropertyModal } from "@/modules/properties/components/EditPropertyModal";
-import { MapPin } from "lucide-react";
+import { MapPin, Copy, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 export default function PropertiesPage() {
     const [selectedStatus, setSelectedStatus] = useState<string>('VERIFIED');
     const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
-    const { data: properties, isLoading } = useProperties(selectedStatus);
+    const { data: properties, isLoading, duplicateProperty, isDuplicating } = useProperties(selectedStatus);
 
     const columns = [
         {
@@ -71,6 +72,26 @@ export default function PropertiesPage() {
                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${getStatusStyles(property.status)}`}>
                     {property.status}
                 </span>
+            )
+        },
+        {
+            header: 'Acciones',
+            accessor: (property: Property) => (
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            if (window.confirm(`¿Duplicar propiedad "${property.name_reference}"?`)) {
+                                duplicateProperty(property.id);
+                            }
+                        }}
+                        disabled={isDuplicating}
+                        className="p-1.5 hover:bg-indigo-500/10 text-indigo-400 rounded-lg transition-colors disabled:opacity-50"
+                        title="Duplicar propiedad"
+                    >
+                        {isDuplicating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Copy className="w-4 h-4" />}
+                    </button>
+                </div>
             )
         }
     ];

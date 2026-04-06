@@ -9,8 +9,8 @@ export interface LocationData {
   state?: string;
   country?: string;
   postal_code?: string;
-  latitude: number | string;
-  longitude: number | string;
+  latitude?: number;
+  longitude?: number;
   short_location?: string;
   shortLocation?: string;
   full_location?: string;
@@ -66,35 +66,38 @@ interface UpdatePropertyPayload {
   status: string;
   builder_id?: string | null;
   location: LocationData;
-  main_characteristics: Array<{ name: string; description: string }>;
-  extra_characteristics: Array<{ name: string; description: string }>;
-  monthly_expenses: Array<{ name: string; price: number; icon?: string }>;
+  main_characteristics: Array<{ id?: string; name: string; description: string }>;
+  extra_characteristics: Array<{ id?: string; name: string; description: string }>;
+  monthly_expenses: Array<{ id?: string; name: string; price: number; icon?: string }>;
 }
 
-const normalizeProperty = (prop: any): Property => {
+const normalizeProperty = (prop: Record<string, unknown>): Property => {
+  const p = prop as any;
   return {
     ...prop,
-    name_reference: prop.nameReference || prop.name_reference,
-    render_url: prop.renderUrl || prop.render_url,
-    user_id: prop.userId || prop.user_id,
-    property_type: prop.propertyType || prop.property_type,
-    built_time: prop.builtTime || prop.built_time,
-    buyback_time: prop.buybackTime || prop.buyback_time,
-    property_reference: prop.propertyReference || prop.property_reference,
-    price: typeof prop.price === 'string' ? parseFloat(prop.price) : prop.price,
-    valuation: typeof prop.valuation === 'string' ? parseFloat(prop.valuation) : prop.valuation,
+    name_reference: p.nameReference || p.name_reference,
+    render_url: p.renderUrl || p.render_url,
+    user_id: p.userId || p.user_id,
+    property_type: p.propertyType || p.property_type,
+    built_time: p.builtTime || p.built_time,
+    buyback_time: p.buybackTime || p.buyback_time,
+    property_reference: p.propertyReference || p.property_reference,
+    price: typeof p.price === 'string' ? parseFloat(p.price) : p.price as number,
+    valuation: typeof p.valuation === 'string' ? parseFloat(p.valuation) : p.valuation as number,
     location: {
-      ...prop.location,
-      short_location: prop.location?.shortLocation || prop.location?.short_location,
-      full_location: prop.location?.fullLocation || prop.location?.full_location,
+      ...p.location,
+      short_location: p.location?.shortLocation || p.location?.short_location,
+      full_location: p.location?.fullLocation || p.location?.full_location,
+      latitude: p.location?.latitude ? parseFloat(p.location.latitude.toString()) : undefined,
+      longitude: p.location?.longitude ? parseFloat(p.location.longitude.toString()) : undefined,
     },
-    main_characteristics: prop.main_characteristics || [],
-    extra_characteristics: prop.extra_characteristics || [],
-    monthly_expenses: (prop.monthly_expenses || []).map((exp: any) => ({
+    main_characteristics: p.main_characteristics || [],
+    extra_characteristics: p.extra_characteristics || [],
+    monthly_expenses: (p.monthly_expenses || []).map((exp: Record<string, unknown>) => ({
       ...exp,
-      price: typeof exp.price === 'string' ? parseFloat(exp.price) : exp.price,
+      price: typeof (exp as any).price === 'string' ? parseFloat((exp as any).price) : (exp as any).price,
     })),
-  };
+  } as Property;
 };
 
 export const useProperties = (status?: string) => {
@@ -120,18 +123,35 @@ export const useProperties = (status?: string) => {
       id: string;
       data: UpdatePropertyPayload;
     }) => {
-      return await fetchApi<Property>(`/properties/${id}`, {
+      const response = await fetchApi<{ property: Record<string, unknown> }>(`/properties/${id}`, {
         method: 'PUT',
         body: JSON.stringify(data),
       });
+      return normalizeProperty(response.property);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['properties'] });
       queryClient.invalidateQueries({ queryKey: ['markets'] });
       toast.success('Propiedad actualizada exitosamente');
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast.error(error.message || 'Error al actualizar la propiedad');
+    },
+  });
+
+  const duplicatePropertyMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const response = await fetchApi<{ property: Record<string, unknown> }>(`/properties/${id}/duplicate`, {
+        method: 'POST',
+      });
+      return normalizeProperty(response.property);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['properties'] });
+      toast.success('Propiedad duplicada exitosamente');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Error al duplicar la propiedad');
     },
   });
 
@@ -139,5 +159,7 @@ export const useProperties = (status?: string) => {
     ...query,
     updateProperty: updatePropertyMutation.mutate,
     isUpdating: updatePropertyMutation.isPending,
+    duplicateProperty: duplicatePropertyMutation.mutate,
+    isDuplicating: duplicatePropertyMutation.isPending,
   };
 };
