@@ -15,11 +15,13 @@ interface EditPropertyModalProps {
     isOpen: boolean;
     onClose: () => void;
     property: Property;
+    /** Tras duplicar: p. ej. alinear el filtro de la lista con el estado de la copia (CREATED). */
+    onDuplicateSuccess?: (duplicated: Property) => void;
 }
 
 type TabType = 'general' | 'details' | 'location' | 'multimedia' | 'risk' | 'investment';
 
-export function EditPropertyModal({ isOpen, onClose, property }: EditPropertyModalProps) {
+export function EditPropertyModal({ isOpen, onClose, property, onDuplicateSuccess }: EditPropertyModalProps) {
     const { updateProperty, isUpdating, duplicateProperty, isDuplicating } = useProperties();
     const { builders, isLoading: buildersLoading, createBuilderAsync, isCreating: isCreatingBuilder } = usePropertyBuilders();
     const [newBuilderName, setNewBuilderName] = useState('');
@@ -218,7 +220,8 @@ export function EditPropertyModal({ isOpen, onClose, property }: EditPropertyMod
                             onClick={() => {
                                 if (window.confirm('¿Estás seguro de que deseas duplicar esta propiedad? Se creará una copia con todos los datos (excepto campañas) y el nombre modificado.')) {
                                     duplicateProperty(property.id, {
-                                        onSuccess: () => {
+                                        onSuccess: (duplicated) => {
+                                            onDuplicateSuccess?.(duplicated);
                                             onClose();
                                         }
                                     });

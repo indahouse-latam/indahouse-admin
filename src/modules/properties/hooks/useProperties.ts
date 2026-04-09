@@ -146,8 +146,11 @@ export const useProperties = (status?: string) => {
       });
       return normalizeProperty(response.property);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['properties'] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ['properties'],
+        refetchType: 'all',
+      });
       toast.success('Propiedad duplicada exitosamente');
     },
     onError: (error: Error) => {

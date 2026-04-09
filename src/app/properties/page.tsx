@@ -82,7 +82,11 @@ export default function PropertiesPage() {
                         onClick={(e) => {
                             e.stopPropagation();
                             if (window.confirm(`¿Duplicar propiedad "${property.name_reference}"?`)) {
-                                duplicateProperty(property.id);
+                                duplicateProperty(property.id, {
+                                    onSuccess: (duplicated) => {
+                                        setSelectedStatus(duplicated.status);
+                                    },
+                                });
                             }
                         }}
                         disabled={isDuplicating}
@@ -147,6 +151,7 @@ export default function PropertiesPage() {
                     property={selectedProperty}
                     isOpen={isEditModalOpen}
                     onClose={handleCloseModal}
+                    onDuplicateSuccess={(duplicated) => setSelectedStatus(duplicated.status)}
                 />
             )}
         </AdminLayout>
