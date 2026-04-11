@@ -4,8 +4,8 @@ import { Building2, Plus, Loader2 } from 'lucide-react';
 import { usePropertyFeed, usePropertyFeedSections } from '../hooks/usePropertyFeed';
 import { usePropertyFeedEditor } from '../hooks/usePropertyFeedEditor';
 import { SectionEditor } from './SectionEditor';
-import { FinancialDocumentsSection } from './FinancialDocumentsSection';
 import { usePropertyRisk, InvestmentStrategyEnum } from '@/modules/properties/hooks/usePropertyRisk';
+import type { PropertyFeedSection } from '../types/property-feed.types';
 
 interface PropertyMultimediaSectionProps {
   propertyId: string | null;
@@ -13,7 +13,9 @@ interface PropertyMultimediaSectionProps {
 }
 
 const BEFORE_AFTER_SECTION_KEY = 'before_after_comparisons';
-const BEFORE_AFTER_SECTION = {
+const FINANCIAL_DOCUMENTS_SECTION_KEY = 'financial_documents';
+
+const BEFORE_AFTER_SECTION: PropertyFeedSection = {
   id: BEFORE_AFTER_SECTION_KEY,
   sectionKey: BEFORE_AFTER_SECTION_KEY,
   sectionName: 'Before & After Comparisons',
@@ -24,9 +26,24 @@ const BEFORE_AFTER_SECTION = {
   updatedAt: ''
 };
 
+const FINANCIAL_DOCUMENTS_SECTION: PropertyFeedSection = {
+  id: FINANCIAL_DOCUMENTS_SECTION_KEY,
+  sectionKey: FINANCIAL_DOCUMENTS_SECTION_KEY,
+  sectionName: 'Financial Documents',
+  sectionDescription: 'Section for financial documents of the property.',
+  displayOrder: 998,
+  isActive: 1,
+  createdAt: '',
+  updatedAt: ''
+};
+
+const VIRTUAL_SECTIONS: PropertyFeedSection[] = [
+  FINANCIAL_DOCUMENTS_SECTION,
+  BEFORE_AFTER_SECTION
+];
+
 export function PropertyMultimediaSection({
-  propertyId,
-  onComplete
+  propertyId
 }: PropertyMultimediaSectionProps) {
   const { data: propertyFeed, isLoading: isFeedLoading, refetch } = usePropertyFeed(propertyId);
   const { data: allSections, isLoading: isSectionsLoading } = usePropertyFeedSections();
@@ -66,15 +83,41 @@ export function PropertyMultimediaSection({
 
   const existingSections = sectionsWithContent;
   const baseAvailableSections = sectionsWithoutContent.map(item => item.section);
-  const hasBeforeAfterInAvailable = baseAvailableSections.some(
-    (section) => section.sectionKey === BEFORE_AFTER_SECTION_KEY
+  const existingSectionKeys = new Set(existingSections.map((item) => item.section.sectionKey));
+  const availableSectionKeys = new Set(baseAvailableSections.map((section) => section.sectionKey));
+  const missingVirtualSections = VIRTUAL_SECTIONS.filter(
+    (section) => !existingSectionKeys.has(section.sectionKey) && !availableSectionKeys.has(section.sectionKey)
   );
-  const hasBeforeAfterInExisting = existingSections.some(
-    (item) => item.section.sectionKey === BEFORE_AFTER_SECTION_KEY
+  const availableSections = [...baseAvailableSections, ...missingVirtualSections];
+  const sortedExistingSections = existingSections.toSorted(
+    (a, b) => a.section.displayOrder - b.section.displayOrder
   );
-  const availableSections = !hasBeforeAfterInAvailable && !hasBeforeAfterInExisting
-    ? [...baseAvailableSections, BEFORE_AFTER_SECTION]
-    : baseAvailableSections;
+  const sortedAvailableSections = availableSections.toSorted(
+    (a, b) => a.displayOrder - b.displayOrder
+  );
+
+  const ensureGlobalSectionExists = (section: PropertyFeedSection, onSuccess: () => void) => {
+    const alreadyExistsInDatabase = (allSections ?? []).some(
+      (availableSection) => availableSection.sectionKey === section.sectionKey
+    );
+
+    if (alreadyExistsInDatabase) {
+      onSuccess();
+      return;
+    }
+
+    createGlobalSection(
+      {
+        section_key: section.sectionKey,
+        section_name: section.sectionName,
+        section_description: section.sectionDescription,
+        is_active: true
+      },
+      {
+        onSuccess
+      }
+    );
+  };
 
   const handleCreateSection = (sectionKey: string) => {
     const createPropertySection = () => {
@@ -88,40 +131,18 @@ export function PropertyMultimediaSection({
       );
     };
 
-    if (sectionKey !== BEFORE_AFTER_SECTION_KEY) {
+    const virtualSection = VIRTUAL_SECTIONS.find((section) => section.sectionKey === sectionKey);
+
+    if (!virtualSection) {
       createPropertySection();
       return;
     }
 
-    const alreadyExistsInDatabase = (allSections ?? []).some(
-      (section) => section.sectionKey === BEFORE_AFTER_SECTION_KEY
-    );
-
-    if (alreadyExistsInDatabase) {
-      createPropertySection();
-      return;
-    }
-
-    createGlobalSection(
-      {
-        section_key: BEFORE_AFTER_SECTION_KEY,
-        section_name: 'Before & After Comparisons',
-        section_description: 'Interactive comparisons showing the difference between two images.',
-        is_active: true
-      },
-      {
-        onSuccess: () => {
-          createPropertySection();
-        }
-      }
-    );
+    ensureGlobalSectionExists(virtualSection, createPropertySection);
   };
 
   return (
     <div className="space-y-6">
-      {/* Documentos financieros (property_file, resource_type=2) */}
-      <FinancialDocumentsSection propertyId={propertyId} />
-
       {existingSections.length === 0 && availableSections.length === 0 && (
         <div className="text-center py-12 text-muted-foreground">
           <Building2 className="w-16 h-16 mx-auto mb-4 opacity-50" />
@@ -137,9 +158,7 @@ export function PropertyMultimediaSection({
           <h3 className="text-sm font-bold uppercase tracking-widest text-primary">
             Secciones Existentes
           </h3>
-          {existingSections
-            .sort((a, b) => a.section.displayOrder - b.section.displayOrder)
-            .map((item) => (
+          {sortedExistingSections.map((item) => (
               <SectionEditor
                 key={item.content!.id}
                 section={item.section}
@@ -158,9 +177,7 @@ export function PropertyMultimediaSection({
             Crear Nueva Sección
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-            {availableSections
-              .sort((a, b) => a.displayOrder - b.displayOrder)
-              .map((section) => (
+            {sortedAvailableSections.map((section) => (
                 <button
                   type="button"
                   key={section.id}
