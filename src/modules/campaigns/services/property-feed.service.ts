@@ -80,7 +80,7 @@ export class PropertyFeedService {
     const formData = new FormData();
 
     files.forEach((file) => {
-      formData.append('files', file);
+      formData.append('files[]', file, file.name);
     });
 
     formData.append('mediaType', mediaType);
@@ -126,7 +126,7 @@ export class PropertyFeedService {
     type: 'document' | 'financial' = 'document'
   ): Promise<{ uploaded: unknown[]; corrupted: unknown[] }> {
     const formData = new FormData();
-    files.forEach((file) => formData.append('files', file));
+    files.forEach((file) => formData.append('files[]', file, file.name));
     formData.append('type', type);
 
     const response = await fetchApi<{
