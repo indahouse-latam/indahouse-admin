@@ -9,14 +9,42 @@ export type MemorySession = {
   nyxToken?: string;
 };
 
+const SESSION_KEY = "indahouse_session";
+
 let memorySession: MemorySession | null = null;
 
+function isBrowser() {
+  return globalThis.window !== undefined;
+}
+
 export function setMemorySession(session: MemorySession | null) {
-  memorySession = session;
+  if (!isBrowser()) {
+    memorySession = session;
+    return;
+  }
+  if (session === null) {
+    memorySession = null;
+    sessionStorage.removeItem(SESSION_KEY);
+    return;
+  }
+  const prev = sessionStorage.getItem(SESSION_KEY);
+  const prevData: Partial<MemorySession> = prev ? JSON.parse(prev) : {};
+  const merged = { ...prevData, ...session, nyxToken: session.nyxToken ?? prevData.nyxToken };
+  memorySession = merged as MemorySession;
+  sessionStorage.setItem(SESSION_KEY, JSON.stringify(merged));
 }
 
 export function getMemorySession(): MemorySession | null {
-  return memorySession;
+  if (memorySession) return memorySession;
+  if (!isBrowser()) return null;
+  const stored = sessionStorage.getItem(SESSION_KEY);
+  if (!stored) return null;
+  try {
+    memorySession = JSON.parse(stored) as MemorySession;
+    return memorySession;
+  } catch {
+    return null;
+  }
 }
 
 function apiUrl(path: string) {
@@ -27,10 +55,16 @@ function apiUrl(path: string) {
 
 export async function fetchAuthMe(): Promise<{ ok: true; data: AuthMeResponse } | { ok: false }> {
   if (!API_URL) return { ok: false };
+
+  const mem = getMemorySession();
+  const headers: Record<string, string> = { Accept: "application/json" };
+  if (mem?.nyxToken) headers.Authorization = `Bearer ${mem.nyxToken}`;
+  if (mem?.id) headers.UserId = mem.id;
+
   const res = await fetch(apiUrl("/auth/me"), {
     method: "GET",
     credentials: "include",
-    headers: { Accept: "application/json" },
+    headers,
   });
   if (!res.ok) return { ok: false };
   const data = (await res.json()) as AuthMeResponse;
@@ -63,7 +97,11 @@ export function meResponseToMemory(data: AuthMeResponse, nyxToken?: string): Mem
 }
 
 export async function fetchWalletToken(): Promise<string | null> {
+  const mem = getMemorySession();
+  if (mem?.nyxToken) return mem.nyxToken;
+
   if (!API_URL) return null;
+
   const res = await fetch(apiUrl("/auth/wallet-token"), {
     method: "GET",
     credentials: "include",
@@ -88,21 +126,31 @@ export async function logoutSessionApi(): Promise<void> {
 }
 
 /**
- * Credenciales para Nyx (proxy de clave privada). Requiere cookie de sesión válida.
+ * Credenciales para Nyx (proxy de clave privada).
+ * Prioriza la sesión en memoria (post-login); si no hay nyxToken cae al endpoint /auth/wallet-token.
  */
 export async function fetchWalletCredentials(): Promise<{ walletId: string; token: string }> {
+  const mem = getMemorySession();
+
+  if (mem?.nyxToken && mem?.walletId) {
+    return { walletId: mem.walletId, token: mem.nyxToken };
+  }
+
   const token = await fetchWalletToken();
   if (!token) {
     throw new Error("No hay token de wallet (sesión inválida o expirada). Vuelve a iniciar sesión.");
   }
 
-  let walletId = getMemorySession()?.walletId;
+  let walletId = mem?.walletId;
   if (!walletId) {
     const me = await fetchAuthMe();
     if (!me.ok) {
       throw new Error("No autenticado");
     }
     walletId = me.data.wallet?.external_id;
+    if (me.data.user) {
+      setMemorySession(meResponseToMemory(me.data, token));
+    }
   }
   if (!walletId) {
     throw new Error("No hay wallet asociada a la cuenta.");
