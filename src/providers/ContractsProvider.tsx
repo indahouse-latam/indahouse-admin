@@ -45,40 +45,40 @@ export interface ContractsConfig {
 // Default values - deployment-docs (Amoy 80002, CO) – .deployment_state.json
 const DEFAULT_CONFIG: ContractsConfig = {
     batch1: {
-        certFactory: "0x1e993A547444210763E19d839883f8dA5E1c3fA3",
-        govFactory: "0x5d6a77C968D1982Dc98D6CfB3f914ed2a3a07Bd2",
-        managerFactory: "0x0c4D2ECb9cB98915a27f046194518b817f4C3A19",
-        poolFactory: "0x15cC4ed8E202D81B20f8b7B82dC5A95d2Cd1e5b2",
-        registry: "0xAe96188a54017e467fa67C6cA48c2497f22C8B80",
-        timeLock: "0xbc2EcaF324bfa90A36877d3F70e8134EED90Ce42",
-        tokenFactory: "0xec81d97712a832b750C016b5e526AAAD6b7CDBEE"
+        certFactory: "0xBaBec9C5ef8Cab422975F46E5020f773DEb07552",
+        govFactory: "0xd8315a88980c29A332c12707977F07e28f69f278",
+        managerFactory: "0xa6B27216E781aE79C67cAB0Ac470083713Cb3c0E",
+        poolFactory: "0xd61a2EB8bE544945979b821B7e0909a5fD22D7BD",
+        registry: "0xec375793e3628b25547CE375Ea3B1598D85cd362",
+        timeLock: "0x35A50701FF23552b90f605b3a3E30785EA30eB92",
+        tokenFactory: "0x8e05870E1aAcC6105A711D710F62399F8236d360"
     },
     batch2: {
-        campaignImpl: "0x5c4FB4E039f1C51D9bA9Be0d9D494dD8e978903e",
-        distributorImpl: "0x1E4A66F3DF7AA92dE879619cDb579Be77133e5A1",
-        indaAdmin: "0x51A89858b4bC1abe979dA8F80Cf09D11b9404623",
-        indaProperties: "0xA1fb58B3CbE67E9B60e4c6E30dd5261c909ff948",
-        indaRootImpl: "0x220705f2a1D90C4924799041F19f37548b1Ac60a",
-        propertyRegistryImpl: "0x585c2550a80F6eF77796cc836b0A3286B819ffD9"
+        campaignImpl: "0xa11b503760Eaf0fc210f44EbD0366Aed3696e0ee",
+        distributorImpl: "0x95ABE41a05d96801EDD66E87C61d1CEa24Ec7fc1",
+        indaAdmin: "0x2Fc5C212b455d67EA08b4b1508df54548BAFAb40",
+        indaProperties: "0xF619060F2F32B91e036cff996cB58b6Fa0F65Ad0",
+        indaRootImpl: "0xec76762c747D167d4ccefc49643919364b21a5EB",
+        propertyRegistryImpl: "0xB1E85A2ffE02D8363c49254781eAb3dcc9295F9C"
     },
     batch3: {
-        adminRouter: "0x6881c3e6821C71E5e73CB69eb1254B9aa79c933F",
-        commitFactory: "0x936e19bb737e29B50b49c77d6b2Cf77A0572448E",
-        distributorProxy: "0x6819152f180D1ffcE6D880f8E8FA4ca023B4fCb9",
-        indaRootProxy: "0x0F05927c042404c379a244431a174613ee24aBD2",
-        propertyRegistryProxy: "0x7cAB49CDDe08492B233d0F3Eac50C171d7478b67",
-        router: "0xbBbf4DAb36d80c1cbC8038791D4D2C855B52e5Ab"
+        adminRouter: "0xfbB1274D9D23C218DDb4f11a1D772e3d301B844A",
+        commitFactory: "0xa0Ef410ff79A469EDf1fe7978087104D5150E4f3",
+        distributorProxy: "0x39bDfE6fc43e756cDf26a5011FfD7B7FD48523B6",
+        indaRootProxy: "0x543F7dF0EBD524b3bE66277E18514B44BAC4b4e1",
+        propertyRegistryProxy: "0x195aaBd7AC85E4FF364b59Cc7A6f5f46e4B45702",
+        router: "0x7594A0b010AF7c5e0FBDc0823df4889d509ae50f"
     },
     batch5: {
-        manager: "0x61D9Ef2E7bE35E7FB1C8838515fa809ec9bbef40",
-        poolDistributor: "0xDD9293078fFbFde17fe81Fd7aC07da7407048d78",
-        poolToken: "0x60e96961d8Ea2B466Abf632f9380803417D7958A",
-        poolVault: "0x355558D142ab03C5399F6309a0871bfBf1D661DF"
+        manager: "0x54c59644FA651091038F144E15d0952Ce1BC9558",
+        poolDistributor: "0xb1b243f5Cc3f579cAf49ee2df4ECd14C76726C80",
+        poolToken: "0xA5b4E347eB2aC837E15AdDD973aA8c93A6487325",
+        poolVault: "0xD7b450420Be6e6d90fB3a9d31506EFEE546972eb"
     },
     countryCode: "CO",
     lastCompletedBatch: 5,
     network: String(DEFAULT_CHAIN_ID),
-    timestamp: 1772631589
+    timestamp: 1779201446
 };
 
 interface ContractsContextType {
