@@ -32,7 +32,7 @@ export function LocationFields({ value, onChange }: LocationFieldsProps) {
         selectPlace,
     } = usePlacesAutocomplete({
         debounceMs: 300,
-        componentRestrictions: { country: ['co', 'us', 'es'] },
+        componentRestrictions: { country: ['co', 'us', 'es', 'ar'] },
     });
 
     // Sync inputValue with value.address when value changes externally
