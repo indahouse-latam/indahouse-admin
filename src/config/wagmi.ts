@@ -1,11 +1,12 @@
 import { http, createConfig } from 'wagmi';
 import { base, baseSepolia, polygon, polygonAmoy } from 'wagmi/chains';
+import { POLYGON_AMOY_RPC_URL } from './env';
 
 /** Chains: QA = polygonAmoy (80002), Production = polygon (137). Base se mantienen por compatibilidad. */
 export const config = createConfig({
     chains: [polygonAmoy, polygon, base, baseSepolia],
     transports: {
-        [polygonAmoy.id]: http('https://rpc-amoy.polygon.technology'),
+        [polygonAmoy.id]: http(POLYGON_AMOY_RPC_URL),
         [polygon.id]: http('https://polygon.drpc.org'),
         [base.id]: http(),
         [baseSepolia.id]: http(),

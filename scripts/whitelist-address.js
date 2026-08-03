@@ -1,3 +1,7 @@
+const { getRequiredRpcUrl } = require('./required-rpc');
+
+const RPC_URL = getRequiredRpcUrl();
+
 const { createWalletClient, createPublicClient, http } = require('viem');
 const { polygonAmoy } = require('viem/chains');
 const { privateKeyToAccount } = require('viem/accounts');
@@ -9,7 +13,6 @@ const { privateKeyToAccount } = require('viem/accounts');
 //   Multiple addresses: node scripts/whitelist-address.js <KEY> <ADDR1> <ADDR2> ...
 // ============================================================================
 
-const RPC_URL = 'https://rpc-amoy.polygon.technology';
 const INDA_ROOT = '0xA19006C5Fe8baa747317b811c9D127cc762A5878';
 
 const setToWhitelistAbi = [{

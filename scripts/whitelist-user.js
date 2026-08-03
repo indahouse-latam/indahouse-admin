@@ -1,8 +1,16 @@
-const { createWalletClient, createPublicClient, http, isAddress } = require('viem');
+const { getRequiredRpcUrl } = require('./required-rpc');
+
+const RPC_URL = getRequiredRpcUrl();
+
+const { createWalletClient, createPublicClient, http, isAddress, parseAbi } = require('viem');
 const { polygonAmoy } = require('viem/chains');
 const { privateKeyToAccount } = require('viem/accounts');
-const { IndaRootAbi } = require('../src/config/abis/inda-root.abi.ts');
-const { currentContracts } = require('../src/config/contracts.ts');
+
+const INDA_ROOT_ADDRESS = '0x543F7dF0EBD524b3bE66277E18514B44BAC4b4e1';
+const IndaRootAbi = parseAbi([
+    'function whitelist(address account) view returns (bool isWhitelisted)',
+    'function _setToWhitelist(address[] _addresses, bool[] _statuses)',
+]);
 
 // Configuracion
 const ADMIN_PRIVATE_KEY = ''; // Coloca aqui la private key del admin con USERS_MANAGER_ROLE
@@ -28,7 +36,7 @@ async function whitelistUser() {
     }
 
     const account = privateKeyToAccount(ADMIN_PRIVATE_KEY);
-    const indaRootAddress = currentContracts.indaRoot;
+    const indaRootAddress = INDA_ROOT_ADDRESS;
 
     console.log(`IndaRoot Contract: ${indaRootAddress}`);
     console.log(`Executing from: ${account.address}`);
@@ -38,12 +46,12 @@ async function whitelistUser() {
     const walletClient = createWalletClient({
         account,
         chain: polygonAmoy,
-        transport: http('https://rpc-amoy.polygon.technology'),
+        transport: http(RPC_URL),
     });
 
     const publicClient = createPublicClient({
         chain: polygonAmoy,
-        transport: http('https://rpc-amoy.polygon.technology'),
+        transport: http(RPC_URL),
     });
 
     try {

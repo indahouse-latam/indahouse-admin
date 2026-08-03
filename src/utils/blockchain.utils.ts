@@ -4,11 +4,12 @@ import { baseSepolia, base, polygonAmoy, polygon } from 'viem/chains';
 import { getPrivateKey } from './nyx-wallet.ultils';
 import { fetchWalletCredentials } from '@/utils/auth-session';
 import { DEFAULT_CHAIN_ID } from '@/config/contracts';
+import { POLYGON_AMOY_RPC_URL } from '@/config/env';
 
 // Get RPC URL based on chain
 const getRpcUrl = (chainId: number) => {
     if (chainId === 84532) return 'https://sepolia.base.org';
-    if (chainId === 80002) return 'https://rpc-amoy.polygon.technology';
+    if (chainId === 80002) return POLYGON_AMOY_RPC_URL;
     if (chainId === 137) return 'https://polygon.drpc.org';
     return 'https://mainnet.base.org';
 };

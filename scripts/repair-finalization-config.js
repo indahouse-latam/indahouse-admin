@@ -1,4 +1,8 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
+const { getRequiredRpcUrl } = require('./required-rpc');
+
+const RPC_URL = getRequiredRpcUrl();
+
 const { createPublicClient, createWalletClient, http, parseAbi } = require('viem');
 const { privateKeyToAccount } = require('viem/accounts');
 const { polygonAmoy } = require('viem/chains');
@@ -14,7 +18,6 @@ const { polygonAmoy } = require('viem/chains');
  */
 
 const CONFIG = {
-    RPC_URL: process.env.RPC_URL || 'https://rpc-amoy.polygon.technology',
     INDA_ADMIN_ROUTER: process.env.INDA_ADMIN_ROUTER || '0x524BEfC17B4c8BE2d1d31ed7d5E0A5260c83a6b1',
     INDA_ROOT: process.env.INDA_ROOT || '0xA19006C5Fe8baa747317b811c9D127cc762A5878',
     BASE_TOKEN: process.env.BASE_TOKEN || '0x6C9A47762AAE694067903F4A7aB65E074488c625',
@@ -47,8 +50,8 @@ async function main() {
 
     const adminKey = adminKeyRaw.startsWith('0x') ? adminKeyRaw : `0x${adminKeyRaw}`;
     const account = privateKeyToAccount(adminKey);
-    const publicClient = createPublicClient({ chain: polygonAmoy, transport: http(CONFIG.RPC_URL) });
-    const walletClient = createWalletClient({ account, chain: polygonAmoy, transport: http(CONFIG.RPC_URL) });
+    const publicClient = createPublicClient({ chain: polygonAmoy, transport: http(RPC_URL) });
+    const walletClient = createWalletClient({ account, chain: polygonAmoy, transport: http(RPC_URL) });
 
     const hasRoleAbi = parseAbi(['function hasRole(bytes32 role,address account) view returns (bool)']);
     const managerAbi = parseAbi([
@@ -320,4 +323,3 @@ main().catch((error) => {
     console.error(error?.shortMessage || error?.message || error);
     process.exit(1);
 });
-

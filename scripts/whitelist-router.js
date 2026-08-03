@@ -1,3 +1,7 @@
+const { getRequiredRpcUrl } = require('./required-rpc');
+
+const RPC_URL = getRequiredRpcUrl();
+
 const { createWalletClient, createPublicClient, http } = require('viem');
 const { polygonAmoy } = require('viem/chains');
 const { privateKeyToAccount } = require('viem/accounts');
@@ -11,7 +15,6 @@ const { privateKeyToAccount } = require('viem/accounts');
 // Usage: node scripts/whitelist-router.js <PRIVATE_KEY>
 // ============================================================================
 
-const RPC_URL = 'https://rpc-amoy.polygon.technology';
 const INDA_ROOT = '0xA19006C5Fe8baa747317b811c9D127cc762A5878';
 const INDA_ADMIN_ROUTER = '0x524BEfC17B4c8BE2d1d31ed7d5E0A5260c83a6b1';
 
