@@ -115,13 +115,17 @@ export const executeAndWaitForTransaction = async <TAbi extends Abi>(params: {
     chainId?: number;
     gasLimit?: bigint;
     confirmations?: number;
+    privateKey?: `0x${string}`;
 }) => {
-    const { confirmations = 1, ...writeParams } = params;
+    const { confirmations = 1, privateKey, ...writeParams } = params;
 
-    // Execute transaction
-    const hash = await executeContractWrite(writeParams);
+    let hash: Hash;
+    if (privateKey) {
+        hash = await executeContractWriteWithKey({ ...writeParams, privateKey });
+    } else {
+        hash = await executeContractWrite(writeParams);
+    }
 
-    // Wait for confirmation
     const receipt = await waitForTransaction({
         hash,
         chainId: params.chainId,

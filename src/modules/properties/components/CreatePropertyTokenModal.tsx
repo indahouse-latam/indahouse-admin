@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { X, Coins, Loader2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { X, Coins, Loader2, AlertCircle, CheckCircle, Settings } from 'lucide-react';
 import { useMarkets } from '@/modules/markets/hooks/useMarkets';
 import { useCountries } from '../hooks/useCountries';
 import { usePropertyTokens } from '../hooks/usePropertyTokens';
@@ -17,6 +17,17 @@ interface CreatePropertyTokenModalProps {
     onClose: () => void;
 }
 
+const CERTIFICATE_MANAGER_ROLE = '0x793fafc4216e31eb47b95467a5d6c852611bb7e4df768602288844840c234392';
+
+function countryCodeToBytes32(code: string): `0x${string}` {
+    const upperCode = code.toUpperCase();
+    return `0x${upperCode
+        .split('')
+        .map(c => c.charCodeAt(0).toString(16))
+        .join('')
+        .padEnd(64, '0')}` as `0x${string}`;
+}
+
 export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyTokenModalProps) {
     const { data: marketsData } = useMarkets();
     const { data: countries } = useCountries();
@@ -28,14 +39,156 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
         country_id: '',
         name: '',
         symbol: '',
-        price_per_token: '50000', // Default $0.05 (6 decimals)
+        price_per_token: '50000',
         sale_start_date: new Date().toISOString().split('T')[0],
     });
 
+    const [privateKey, setPrivateKey] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [loadingStep, setLoadingStep] = useState<
-        'certificate' | 'creating_distributor' | 'creating' | 'confirming' | 'init_distributor' | 'registering_manager' | 'registering_property' | 'saving' | null
+        'checking_manager' | 'creating_manager' | 'certificate' | 'creating_distributor' | 'creating' | 'confirming' | 'init_distributor' | 'registering_manager' | 'registering_property' | 'saving' | null
     >(null);
+    const [managerStatus, setManagerStatus] = useState<{
+        exists: boolean;
+        address: string | null;
+        hasRole: boolean;
+        needsSetup: boolean;
+    } | null>(null);
+
+    useEffect(() => {
+        if (!formData.country_id || !countries) {
+            setManagerStatus(null);
+            return;
+        }
+
+        const selectedCountry = countries.find(c => c.id === formData.country_id);
+        if (!selectedCountry) {
+            setManagerStatus(null);
+            return;
+        }
+
+        checkManagerStatus(selectedCountry.code);
+    }, [formData.country_id, countries]);
+
+    const checkManagerStatus = async (countryCode: string) => {
+        try {
+            const publicClient = createUserPublicClient(DEFAULT_CHAIN_ID);
+            const countryCodeBytes32 = countryCodeToBytes32(countryCode);
+            const registryAddress = currentContracts.indahouseRegistry as `0x${string}`;
+            const zeroAddress = '0x0000000000000000000000000000000000000000';
+
+            const managerAddress = await publicClient.readContract({
+                address: registryAddress,
+                abi: IndahouseRegistryAbi,
+                functionName: 'getManager',
+                args: [countryCodeBytes32],
+            }) as `0x${string}`;
+
+            const exists = managerAddress && managerAddress !== zeroAddress;
+
+            if (!exists) {
+                setManagerStatus({ exists: false, address: null, hasRole: false, needsSetup: true });
+                return;
+            }
+
+            const walletClient = await createUserWalletClient(DEFAULT_CHAIN_ID);
+            const adminAddress = walletClient.account.address;
+
+            const hasRole = await publicClient.readContract({
+                address: managerAddress,
+                abi: ManagerAbi,
+                functionName: 'hasRole',
+                args: [CERTIFICATE_MANAGER_ROLE, adminAddress],
+            }) as boolean;
+
+            setManagerStatus({
+                exists: true,
+                address: managerAddress,
+                hasRole,
+                needsSetup: !hasRole,
+            });
+        } catch (error) {
+            console.error('Error checking manager status:', error);
+            setManagerStatus({ exists: false, address: null, hasRole: false, needsSetup: true });
+        }
+    };
+
+    const setupManager = async (): Promise<string> => {
+        if (!privateKey) {
+            throw new Error('Private key is required to set up manager');
+        }
+
+        if (!formData.country_id || !countries) {
+            throw new Error('Country not selected');
+        }
+
+        const selectedCountry = countries.find(c => c.id === formData.country_id);
+        if (!selectedCountry) {
+            throw new Error('Country not found');
+        }
+
+        setLoadingStep('creating_manager');
+
+        const formattedKey = privateKey.startsWith('0x') ? privateKey as `0x${string}` : `0x${privateKey}` as `0x${string}`;
+        const registryAddress = currentContracts.indahouseRegistry as `0x${string}`;
+        const countryCodeBytes32 = countryCodeToBytes32(selectedCountry.code);
+        const publicClient = createUserPublicClient(DEFAULT_CHAIN_ID);
+        const walletClient = await createUserWalletClient(DEFAULT_CHAIN_ID);
+        const adminAddress = walletClient.account.address;
+
+        const zeroAddress = '0x0000000000000000000000000000000000000000';
+
+        const existingManager = await publicClient.readContract({
+            address: registryAddress,
+            abi: IndahouseRegistryAbi,
+            functionName: 'getManager',
+            args: [countryCodeBytes32],
+        }) as `0x${string}`;
+
+        if (existingManager && existingManager !== zeroAddress) {
+            if (!privateKey) {
+                throw new Error('Private key required to grant certificate manager role');
+            }
+
+            await executeAndWaitForTransaction({
+                contractAddress: existingManager,
+                abi: ManagerAbi,
+                functionName: 'grantRole',
+                args: [CERTIFICATE_MANAGER_ROLE, adminAddress],
+                chainId: DEFAULT_CHAIN_ID,
+                privateKey: formattedKey,
+            });
+
+            return existingManager;
+        }
+
+        await executeAndWaitForTransaction({
+            contractAddress: registryAddress,
+            abi: IndahouseRegistryAbi,
+            functionName: 'createManager',
+            args: [countryCodeBytes32],
+            chainId: DEFAULT_CHAIN_ID,
+            privateKey: formattedKey,
+        });
+
+        const newManager = await publicClient.readContract({
+            address: registryAddress,
+            abi: IndahouseRegistryAbi,
+            functionName: 'getManager',
+            args: [countryCodeBytes32],
+        }) as `0x${string}`;
+
+        await executeAndWaitForTransaction({
+            contractAddress: newManager,
+            abi: ManagerAbi,
+            functionName: 'grantRole',
+            args: [CERTIFICATE_MANAGER_ROLE, adminAddress],
+            chainId: DEFAULT_CHAIN_ID,
+            privateKey: formattedKey,
+        });
+
+        return newManager;
+    };
 
     if (!isOpen) return null;
 
@@ -96,6 +249,23 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
                 managerAddress = (managerFromRegistry && managerFromRegistry !== zeroAddress ? managerFromRegistry : networkConfig.manager) as `0x${string}`;
             } else {
                 managerAddress = networkConfig.manager as `0x${string}`;
+            }
+
+            if (managerAddress === networkConfig.manager) {
+                if (!privateKey) {
+                    toast.error(
+                        `No manager configured for ${selectedCountryCode}. Please provide the master private key below to set up the manager.`,
+                        { duration: 10000 }
+                    );
+                    throw new Error(
+                        `No manager found for ${selectedCountryCode} in registry. Provide the master private key to create and configure the manager.`
+                    );
+                }
+
+                toast.info(`Setting up manager for ${selectedCountryCode}...`);
+                managerAddress = await setupManager();
+                toast.success(`Manager configured for ${selectedCountryCode}`);
+                setManagerStatus({ exists: true, address: managerAddress, hasRole: true, needsSetup: false });
             }
 
             // Guardrail: do not create a new token if configured distributor is already bound to a different shareToken
@@ -346,6 +516,8 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
     };
 
     const getLoadingMessage = () => {
+        if (loadingStep === 'checking_manager') return 'Checking manager status...';
+        if (loadingStep === 'creating_manager') return 'Setting up manager for country...';
         if (loadingStep === 'certificate') return 'Verificando certificado del país...';
         if (loadingStep === 'creating_distributor') return 'Creating distributor proxy...';
         if (loadingStep === 'creating') return 'Creating token on blockchain...';
@@ -420,6 +592,46 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
                         </select>
                     </div>
 
+                    {/* Manager Status */}
+                    {formData.country_id && (
+                        <div className={`p-4 rounded-xl border ${
+                            managerStatus?.exists && managerStatus?.hasRole
+                                ? 'bg-green-500/10 border-green-500/30'
+                                : managerStatus?.exists && !managerStatus?.hasRole
+                                ? 'bg-yellow-500/10 border-yellow-500/30'
+                                : 'bg-red-500/10 border-red-500/30'
+                        }`}>
+                            <div className="flex items-center gap-3">
+                                {managerStatus?.exists && managerStatus?.hasRole ? (
+                                    <CheckCircle className="w-5 h-5 text-green-500" />
+                                ) : managerStatus?.exists && !managerStatus?.hasRole ? (
+                                    <AlertCircle className="w-5 h-5 text-yellow-500" />
+                                ) : (
+                                    <AlertCircle className="w-5 h-5 text-red-500" />
+                                )}
+                                <div className="flex-1">
+                                    <p className="text-sm font-medium">
+                                        {managerStatus?.exists && managerStatus?.hasRole
+                                            ? 'Manager configurado correctamente'
+                                            : managerStatus?.exists && !managerStatus?.hasRole
+                                            ? 'Manager existe pero缺少角色'
+                                            : 'Manager no configurado para este país'}
+                                    </p>
+                                    {managerStatus?.address && (
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                            Manager: {managerStatus.address}
+                                        </p>
+                                    )}
+                                    {!managerStatus?.exists && (
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                            Se necesita configurar el manager antes de crear tokens.
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Token Name */}
                     <div className="space-y-2">
                         <label className="text-sm font-medium">Token Name *</label>
@@ -481,6 +693,27 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
                             />
                         </div>
                     </div>
+
+                    {/* Master Private Key (only shown when manager needs setup) */}
+                    {managerStatus?.needsSetup && (
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium flex items-center gap-2">
+                                <Settings className="w-4 h-4" />
+                                Master Private Key *
+                            </label>
+                            <input
+                                type="password"
+                                value={privateKey}
+                                onChange={(e) => setPrivateKey(e.target.value)}
+                                disabled={isLoading}
+                                placeholder="0x..."
+                                className="w-full bg-secondary border border-border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                Required to create manager and grant permissions for {managerStatus.exists ? 'this country' : 'new country'}.
+                            </p>
+                        </div>
+                    )}
 
                     {/* Footer */}
                     <div className="flex gap-3 pt-4 border-t border-border">

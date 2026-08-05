@@ -34,12 +34,6 @@ export default function SettingsPage() {
     const handleReset = () => {
         if (confirm("Are you sure you want to reset to default values?")) {
             resetContracts();
-            // We need to wait for the context to update or manually reset the input, 
-            // but since resetContracts updates the context, and we initialize state from context...
-            // Actually, we need to sync the input box with the new context value.
-            // A simple way is to reload or just set the input to the default value derived from context after a timeout, 
-            // or better, use an effect or key to force re-render.
-            // For simplicity in this version:
             setTimeout(() => {
                 window.location.reload();
             }, 100);
