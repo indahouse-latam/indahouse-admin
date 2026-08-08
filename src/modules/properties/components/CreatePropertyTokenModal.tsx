@@ -10,7 +10,7 @@ import { TokenFactoryAbi, ManagerAbi, PropertyRegistryAbi, IndahouseRegistryAbi 
 import { PoolFactoryAbi } from '@/config/abis/pool-factory.abi';
 import { currentContracts, DEFAULT_CHAIN_ID } from '@/config/contracts';
 import { toast } from 'sonner';
-import { createUserPublicClient, createUserWalletClient, executeAndWaitForTransaction } from '@/utils/blockchain.utils';
+import { createUserPublicClient, createUserWalletClient, executeAndWaitForTransaction, checkHasRole, parseContractError } from '@/utils/blockchain.utils';
 
 interface CreatePropertyTokenModalProps {
     isOpen: boolean;
@@ -135,6 +135,17 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
         const publicClient = createUserPublicClient(DEFAULT_CHAIN_ID);
         const walletClient = await createUserWalletClient(DEFAULT_CHAIN_ID);
         const adminAddress = walletClient.account.address;
+
+        const hasAdminRole = await checkHasRole({
+            contractAddress: registryAddress,
+            abi: IndahouseRegistryAbi,
+            role: '0x0000000000000000000000000000000000000000000000000000000000000000',
+            account: adminAddress,
+            chainId: DEFAULT_CHAIN_ID,
+        });
+        if (!hasAdminRole) {
+            throw new Error('You need DEFAULT_ADMIN_ROLE on IndahouseRegistry to create managers for new countries. Contact the contract admin.');
+        }
 
         const zeroAddress = '0x0000000000000000000000000000000000000000';
 
@@ -473,7 +484,6 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
                         status: 'active',
                         property_id: formData?.property_id,
                         price_per_token: String(Number(formData.price_per_token) / 1_000_000),
-                        // sale_start_date: formData.sale_start_date,
                     },
                     {
                         onSuccess: () => {
@@ -504,7 +514,7 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
 
             onClose();
         } catch (error: unknown) {
-            const message = error instanceof Error ? error.message : 'Unknown error occurred';
+            const message = parseContractError(error);
             console.error('❌ Error creating token:', error);
             toast.error('Failed to create token', {
                 description: message,
@@ -614,7 +624,7 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
                                         {managerStatus?.exists && managerStatus?.hasRole
                                             ? 'Manager configurado correctamente'
                                             : managerStatus?.exists && !managerStatus?.hasRole
-                                            ? 'Manager existe pero缺少角色'
+                                            ? 'Manager existe pero falta rol'
                                             : 'Manager no configurado para este país'}
                                     </p>
                                     {managerStatus?.address && (

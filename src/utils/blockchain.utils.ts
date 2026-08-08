@@ -1,10 +1,28 @@
-import { createWalletClient, createPublicClient, http, type Hash, type TransactionReceipt, type Abi } from 'viem';
+import { createWalletClient, createPublicClient, http, type Hash, type TransactionReceipt, type Abi, ContractFunctionRevertedError } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { baseSepolia, base, polygonAmoy, polygon } from 'viem/chains';
 import { getPrivateKey } from './nyx-wallet.ultils';
 import { fetchWalletCredentials } from '@/utils/auth-session';
 import { DEFAULT_CHAIN_ID } from '@/config/contracts';
 import { POLYGON_AMOY_RPC_URL } from '@/config/env';
+
+/**
+ * Parses contract errors and returns a user-friendly message
+ */
+export const parseContractError = (error: unknown): string => {
+    if (error instanceof ContractFunctionRevertedError) {
+        return error.reason || error.errorName || 'Transaction reverted';
+    }
+    if (error instanceof Error) {
+        if (error.message.includes('Internal JSON-RPC error')) {
+            const reasonMatch = error.message.match(/"reason":"([^"]+)"/);
+            if (reasonMatch) return reasonMatch[1];
+            return 'Transaction failed on chain';
+        }
+        return error.message;
+    }
+    return 'Unknown error occurred';
+};
 
 // Get RPC URL based on chain
 const getRpcUrl = (chainId: number) => {
@@ -131,6 +149,10 @@ export const executeAndWaitForTransaction = async <TAbi extends Abi>(params: {
         chainId: params.chainId,
         confirmations,
     });
+
+    if (receipt.status === 'reverted') {
+        throw new Error('Transaction reverted');
+    }
 
     return { hash, receipt };
 };
