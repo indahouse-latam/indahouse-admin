@@ -1,19 +1,32 @@
 'use client';
 
-import { X, Building2, DollarSign, Calendar, Hash, TrendingUp, Clock } from 'lucide-react';
+import { X, Building2, DollarSign, Calendar, Hash, TrendingUp, Clock, Loader2 } from 'lucide-react';
 import { Campaign } from '../hooks/useCampaigns';
 import { CommitCampaignAbi } from '@/config/abis/commit-campaing.abi';
 import { IndaAdminRouterAbi } from '@/config/abis/inda-admin-router.abi';
+import { IndaRootAbi, ManagerAbi } from '@/config/abis';
 import { currentContracts, DEFAULT_CHAIN_ID } from '@/config/contracts';
 import {
     executeContractWrite,
+    executeAndWaitForTransaction,
     createUserPublicClient,
-    waitForTransaction
+    waitForTransaction,
+    parseContractError,
 } from '@/utils/blockchain.utils';
 import { fetchApi } from '@/utils/api';
 import { useQueryClient } from '@tanstack/react-query';
 import { Abi, Hash as ViemHash, parseAbi } from 'viem';
 import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
+
+type PreflightFix = 'whitelist' | 'register_campaign' | 'approve_funds';
+
+interface PreflightIssue {
+    id: string;
+    message: string;
+    fix?: PreflightFix;
+    address?: `0x${string}`;
+}
 
 interface CampaignDetailModalProps {
     campaign: Campaign;
@@ -36,15 +49,32 @@ interface FinalizationState {
     step1Hash: ViemHash | null;
     step2Hashes: ViemHash[];
     countryCode: `0x${string}` | null;
-    preflightIssues: string[];
+    /** Country used for getManager / finalize (ES remaps to CO; AR stays AR) */
+    countryCodeForFinalization: `0x${string}` | null;
+    managerAddress: string | null;
+    preflightIssues: PreflightIssue[];
 }
 const BATCH_SIZE = 50;
 const COUNTRY_CODE_ES_BYTES32 = `0x4553000000000000000000000000000000000000000000000000000000000000`;
 const COUNTRY_CODE_CO_BYTES32 = `0x434f000000000000000000000000000000000000000000000000000000000000`;
 
+/** Legacy: ES properties share CO manager. All other countries (incl. AR) keep their own code. */
 function mapCountryCodeForFinalization(countryCode: `0x${string}`): `0x${string}` {
     if (countryCode.toLowerCase() !== COUNTRY_CODE_ES_BYTES32) return countryCode;
     return COUNTRY_CODE_CO_BYTES32;
+}
+
+function bytes32ToCountryCode(value: `0x${string}` | null): string {
+    if (!value) return '—';
+    const hex = value.slice(2).replace(/00+$/, '');
+    if (!hex || hex.length % 2 !== 0) return value.slice(0, 10) + '...';
+    let out = '';
+    for (let i = 0; i < hex.length; i += 2) {
+        const code = parseInt(hex.slice(i, i + 2), 16);
+        if (code === 0) break;
+        out += String.fromCharCode(code);
+    }
+    return out || value.slice(0, 10) + '...';
 }
 
 export function CampaignDetailModal({ campaign, isOpen, onClose }: CampaignDetailModalProps) {
@@ -64,8 +94,11 @@ export function CampaignDetailModal({ campaign, isOpen, onClose }: CampaignDetai
         step1Hash: null,
         step2Hashes: [],
         countryCode: null,
+        countryCodeForFinalization: null,
+        managerAddress: null,
         preflightIssues: []
     });
+    const [isFixingPreflight, setIsFixingPreflight] = useState(false);
 
     console.log('Campaign data:', campaign);
 
@@ -92,7 +125,15 @@ export function CampaignDetailModal({ campaign, isOpen, onClose }: CampaignDetai
             const publicClient = createUserPublicClient(DEFAULT_CHAIN_ID);
             const campaignAddr = ((campaign as any).campaignAddress || campaign.campaign_address) as `0x${string}`;
             const tokenAddress = ((campaign as any).tokenAddress || (campaign as any).token_address) as `0x${string}`;
-            const preflightIssues: string[] = [];
+            const preflightIssues: PreflightIssue[] = [];
+            const pushIssue = (issue: Omit<PreflightIssue, 'id'> & { id?: string }) => {
+                preflightIssues.push({
+                    id: issue.id || `${issue.fix || 'info'}-${issue.address || preflightIssues.length}-${issue.message.slice(0, 24)}`,
+                    message: issue.message,
+                    fix: issue.fix,
+                    address: issue.address,
+                });
+            };
 
             console.log('📡 Reading contract data from:', campaignAddr);
 
@@ -156,19 +197,22 @@ export function CampaignDetailModal({ campaign, isOpen, onClose }: CampaignDetai
                     dynamicCountryCode = property[1] as `0x${string}`;
                     const pricePerToken = property[4] as bigint;
                     const propertyStatus = Number(property[8]);
-                    if (pricePerToken === BigInt(0)) preflightIssues.push('Property pricePerToken is zero.');
-                    if (propertyStatus !== 1) preflightIssues.push(`Property status is not ACTIVE (status=${propertyStatus}).`);
+                    if (pricePerToken === BigInt(0)) pushIssue({ message: 'Property pricePerToken is zero.' });
+                    if (propertyStatus !== 1) pushIssue({ message: `Property status is not ACTIVE (status=${propertyStatus}).` });
                 }
             } catch (error) {
                 console.error('Error resolving dynamic country code:', error);
-                preflightIssues.push('Could not resolve country code from token/property on-chain.');
+                pushIssue({ message: 'Could not resolve country code from token/property on-chain.' });
             }
 
-            if (!dynamicCountryCode) preflightIssues.push('Missing dynamic country code for finalization.');
+            if (!dynamicCountryCode) pushIssue({ message: 'Missing dynamic country code for finalization.' });
+
+            let resolvedManager: string | null = null;
+            let countryCodeForFinalization: `0x${string}` | null = null;
 
             // Additional preflight checks for clear UI errors before finalization
             if (dynamicCountryCode) {
-                const countryCodeForFinalization = mapCountryCodeForFinalization(dynamicCountryCode);
+                countryCodeForFinalization = mapCountryCodeForFinalization(dynamicCountryCode);
                 try {
                     const managerFromRegistry = await publicClient.readContract({
                         address: currentContracts.indahouseRegistry as `0x${string}`,
@@ -178,8 +222,23 @@ export function CampaignDetailModal({ campaign, isOpen, onClose }: CampaignDetai
                     }) as `0x${string}`;
                     const zeroAddress = '0x0000000000000000000000000000000000000000';
                     if (!managerFromRegistry || managerFromRegistry === zeroAddress) {
-                        preflightIssues.push('No manager found in registry for resolved country code.');
+                        pushIssue({
+                            message: `No manager in registry for ${bytes32ToCountryCode(countryCodeForFinalization)}.`,
+                        });
                     } else {
+                        resolvedManager = managerFromRegistry;
+                        // Persist manager ASAP so UI shows it even if later reads fail
+                        setFinState(prev => ({
+                            ...prev,
+                            managerAddress: managerFromRegistry,
+                            countryCode: dynamicCountryCode,
+                            countryCodeForFinalization,
+                        }));
+                        console.log(
+                            `Finalization manager for ${bytes32ToCountryCode(countryCodeForFinalization)}:`,
+                            managerFromRegistry
+                        );
+
                         const [campaignRegistered, poolInfo] = await Promise.all([
                             publicClient.readContract({
                                 address: managerFromRegistry,
@@ -194,7 +253,14 @@ export function CampaignDetailModal({ campaign, isOpen, onClose }: CampaignDetai
                             }) as Promise<readonly [`0x${string}`, `0x${string}`, `0x${string}`, boolean]>,
                         ]);
 
-                        if (!campaignRegistered) preflightIssues.push('Campaign is not registered in resolved manager.');
+                        if (!campaignRegistered) {
+                            pushIssue({
+                                id: 'register-campaign',
+                                fix: 'register_campaign',
+                                address: campaignAddr,
+                                message: `Campaign is not registered in manager ${managerFromRegistry} (${bytes32ToCountryCode(countryCodeForFinalization)}).`,
+                            });
+                        }
 
                         const poolVault = poolInfo[2];
                         const criticalAddresses: { kind: string; address: `0x${string}` }[] = [
@@ -235,13 +301,13 @@ export function CampaignDetailModal({ campaign, isOpen, onClose }: CampaignDetai
                         ]);
 
                         if (shareToken.toLowerCase() !== tokenAddress.toLowerCase()) {
-                            preflightIssues.push('Token distributor shareToken mismatch.');
+                            pushIssue({ message: 'Token distributor shareToken mismatch.' });
                         }
                         if (rewardToken.toLowerCase() !== (currentContracts.baseToken as string).toLowerCase()) {
-                            preflightIssues.push('Token distributor rewardToken mismatch.');
+                            pushIssue({ message: 'Token distributor rewardToken mismatch.' });
                         }
                         if (indaRootOnDistributor.toLowerCase() !== (currentContracts.indaRoot as string).toLowerCase()) {
-                            preflightIssues.push('Token distributor indaRoot mismatch.');
+                            pushIssue({ message: 'Token distributor indaRoot mismatch.' });
                         }
 
                         for (const inv of investorAddresses) {
@@ -253,7 +319,7 @@ export function CampaignDetailModal({ campaign, isOpen, onClose }: CampaignDetai
                                 args: [inv],
                             }) as `0x${string}`;
                             if (cmd === zeroAddress) {
-                                preflightIssues.push(`Investor ${inv} has no CMD.`);
+                                pushIssue({ message: `Investor ${inv} has no CMD.` });
                             } else {
                                 criticalAddresses.push({ kind: 'cmd', address: cmd });
                             }
@@ -282,7 +348,12 @@ export function CampaignDetailModal({ campaign, isOpen, onClose }: CampaignDetai
                             }) as boolean;
                             if (!isWhitelisted) {
                                 const labels = [...item.kinds].join(', ');
-                                preflightIssues.push(`[${labels}] Address ${item.address} is not whitelisted.`);
+                                pushIssue({
+                                    id: `whitelist-${item.address.toLowerCase()}`,
+                                    fix: 'whitelist',
+                                    address: item.address,
+                                    message: `[${labels}] Address ${item.address} is not whitelisted.`,
+                                });
                             }
                         }
 
@@ -293,12 +364,16 @@ export function CampaignDetailModal({ campaign, isOpen, onClose }: CampaignDetai
                             args: [campaignAddr, currentContracts.IndaAdminRouter as `0x${string}`],
                         }) as bigint;
                         if (allowance < (totalCommitted as bigint)) {
-                            preflightIssues.push('Campaign allowance to IndaAdminRouter is insufficient (run approveFunds).');
+                            pushIssue({
+                                id: 'approve-funds',
+                                fix: 'approve_funds',
+                                message: 'Campaign allowance to IndaAdminRouter is insufficient (run Step 1: approveFunds).',
+                            });
                         }
                     }
                 } catch (error) {
                     console.error('Error in finalization preflight checks:', error);
-                    preflightIssues.push('Could not complete preflight checks due to contract read error.');
+                    pushIssue({ message: `Could not complete preflight checks: ${parseContractError(error)}` });
                 }
             }
 
@@ -313,6 +388,8 @@ export function CampaignDetailModal({ campaign, isOpen, onClose }: CampaignDetai
                 investorCount: investors.toString(),
                 totalBatches,
                 countryCode: dynamicCountryCode,
+                countryCodeForFinalization,
+                managerAddress: resolvedManager,
                 preflightIssuesCount: preflightIssues.length,
                 isAfterExecuteTime: currentTime >= (executeAfter as bigint),
                 isMinCapReached: minCap ? BigInt(minCap) <= (totalCommitted as bigint) : false
@@ -327,6 +404,8 @@ export function CampaignDetailModal({ campaign, isOpen, onClose }: CampaignDetai
                 investorCount: investors,
                 totalBatches,
                 countryCode: dynamicCountryCode,
+                countryCodeForFinalization,
+                managerAddress: resolvedManager,
                 preflightIssues,
                 step1Status: 'idle',
                 step1Error: null
@@ -338,6 +417,59 @@ export function CampaignDetailModal({ campaign, isOpen, onClose }: CampaignDetai
                 step1Status: 'failed',
                 step1Error: error.message || 'Failed to load campaign data'
             }));
+        }
+    };
+
+    const fixWhitelistMissing = async () => {
+        const addresses = finState.preflightIssues
+            .filter((i) => i.fix === 'whitelist' && i.address)
+            .map((i) => i.address!);
+        const unique = [...new Map(addresses.map((a) => [a.toLowerCase(), a])).values()];
+        if (unique.length === 0) {
+            toast.error('No hay addresses para whitelistear');
+            return;
+        }
+
+        setIsFixingPreflight(true);
+        try {
+            toast.info(`Whitelisteando ${unique.length} address(es) en IndaRoot...`);
+            await executeAndWaitForTransaction({
+                contractAddress: currentContracts.indaRoot as `0x${string}`,
+                abi: IndaRootAbi as Abi,
+                functionName: '_setToWhitelist',
+                args: [unique, unique.map(() => true)],
+                chainId: DEFAULT_CHAIN_ID,
+            });
+            toast.success('Whitelist actualizada');
+            await checkPrerequisites();
+        } catch (error) {
+            toast.error(`Error al whitelistear: ${parseContractError(error)}`);
+        } finally {
+            setIsFixingPreflight(false);
+        }
+    };
+
+    const fixRegisterCampaign = async () => {
+        if (!finState.managerAddress) {
+            toast.error('Manager no resuelto');
+            return;
+        }
+        setIsFixingPreflight(true);
+        try {
+            toast.info('Registrando campaña en el Manager...');
+            await executeAndWaitForTransaction({
+                contractAddress: finState.managerAddress as `0x${string}`,
+                abi: ManagerAbi as Abi,
+                functionName: 'registerCampaign',
+                args: [campaignAddr as `0x${string}`],
+                chainId: DEFAULT_CHAIN_ID,
+            });
+            toast.success('Campaña registrada en Manager');
+            await checkPrerequisites();
+        } catch (error) {
+            toast.error(`Error al registrar campaña: ${parseContractError(error)}`);
+        } finally {
+            setIsFixingPreflight(false);
         }
     };
 
@@ -378,7 +510,11 @@ export function CampaignDetailModal({ campaign, isOpen, onClose }: CampaignDetai
             if (!finState.countryCode) {
                 throw new Error('Missing dynamic countryCode. Please run prerequisites check again.');
             }
-            const countryCodeForFinalization = mapCountryCodeForFinalization(finState.countryCode);
+            const countryCodeForFinalization =
+                finState.countryCodeForFinalization || mapCountryCodeForFinalization(finState.countryCode);
+            console.log(
+                `Finalizing with country ${bytes32ToCountryCode(countryCodeForFinalization)} manager ${finState.managerAddress}`
+            );
             const investors = Number(finState.investorCount || BigInt(0));
             const totalBatches = finState.totalBatches || 1;
             const hashes: ViemHash[] = [];
@@ -431,7 +567,7 @@ export function CampaignDetailModal({ campaign, isOpen, onClose }: CampaignDetai
                 ...prev,
                 step2Status: 'failed',
                 step2Error: hasSilentRevert
-                    ? `Preflight failed. First issue: ${finState.preflightIssues[0]}`
+                    ? `Preflight failed. First issue: ${finState.preflightIssues[0]?.message}`
                     : `Batch ${prev.currentBatch}/${prev.totalBatches} failed: ${error.message || 'Transaction failed'}`
             }));
         }
@@ -732,36 +868,114 @@ export function CampaignDetailModal({ campaign, isOpen, onClose }: CampaignDetai
                                     </div>
 
                                     {/* Overall Status */}
-                                    <div className="pt-3 border-t border-border">
+                                    <div className="pt-3 border-t border-border space-y-2">
                                         <div className="flex items-center justify-between">
-                                            <span className="text-sm font-bold">Ready to Finalize:</span>
+                                            <span className="text-sm font-bold">Ready for Step 1 (approve):</span>
                                             <span className={canExecuteStep1 ? 'text-success-500 font-bold text-lg' : 'text-destructive font-bold text-lg'}>
                                                 {canExecuteStep1 ? '✅ YES' : '❌ NO'}
                                             </span>
                                         </div>
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-sm font-bold">Ready for Step 2 (finalize):</span>
+                                            <span className={canExecuteStep2 ? 'text-success-500 font-bold text-lg' : 'text-destructive font-bold text-lg'}>
+                                                {canExecuteStep2 ? '✅ YES' : '❌ NO'}
+                                            </span>
+                                        </div>
                                         {!canExecuteStep1 && (
-                                            <p className="text-xs text-muted-foreground mt-2">
-                                                Complete all prerequisites above to enable Step 1.
+                                            <p className="text-xs text-muted-foreground">
+                                                Step 1 necesita: status active, executeAfter alcanzado y min cap.
+                                            </p>
+                                        )}
+                                        {canExecuteStep1 && !canExecuteStep2 && finState.preflightIssues.length > 0 && (
+                                            <p className="text-xs text-amber-600">
+                                                Step 2 bloqueado por preflight — corregí los issues abajo (whitelist, etc.).
                                             </p>
                                         )}
                                     </div>
 
-                                    {/* Dynamic countryCode and preflight result for Step 2 */}
-                                    <div className="pt-3 border-t border-border mt-3">
-                                        <div className="text-xs text-muted-foreground">Resolved countryCode</div>
-                                        <div className="font-mono text-xs mt-1 break-all">
-                                            {finState.countryCode || 'Not resolved'}
+                                    {/* Dynamic country / manager (per-country, not hardcoded CO) */}
+                                    <div className="pt-3 border-t border-border mt-3 space-y-2">
+                                        <div>
+                                            <div className="text-xs text-muted-foreground">País (property on-chain)</div>
+                                            <div className="text-sm font-medium mt-0.5">
+                                                {bytes32ToCountryCode(finState.countryCode)}
+                                                {finState.countryCode &&
+                                                    finState.countryCodeForFinalization &&
+                                                    finState.countryCode.toLowerCase() !==
+                                                        finState.countryCodeForFinalization.toLowerCase() && (
+                                                    <span className="text-xs text-amber-600 ml-2">
+                                                        → finalize como {bytes32ToCountryCode(finState.countryCodeForFinalization)} (remap ES→CO)
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="font-mono text-[10px] text-muted-foreground mt-1 break-all">
+                                                {finState.countryCode || 'Not resolved'}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <div className="text-xs text-muted-foreground">
+                                                Manager (IndahouseRegistry.getManager)
+                                            </div>
+                                            <div className="font-mono text-xs mt-1 break-all">
+                                                {finState.managerAddress || 'Not resolved'}
+                                            </div>
                                         </div>
                                         {finState.preflightIssues.length > 0 && (
-                                            <div className="mt-3 bg-destructive/10 border border-destructive/20 rounded-lg p-3">
-                                                <p className="text-xs font-bold text-destructive mb-2">
+                                            <div className="mt-3 bg-destructive/10 border border-destructive/20 rounded-lg p-3 space-y-3">
+                                                <p className="text-xs font-bold text-destructive">
                                                     Finalization preflight issues:
                                                 </p>
-                                                <ul className="text-xs space-y-1 text-muted-foreground">
+                                                <ul className="text-xs space-y-2 text-muted-foreground">
                                                     {finState.preflightIssues.map((issue) => (
-                                                        <li key={issue}>• {issue}</li>
+                                                        <li key={issue.id} className="flex items-start justify-between gap-2">
+                                                            <span>• {issue.message}</span>
+                                                        </li>
                                                     ))}
                                                 </ul>
+                                                <div className="flex flex-wrap gap-2 pt-1">
+                                                    {finState.preflightIssues.some((i) => i.fix === 'whitelist') && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={fixWhitelistMissing}
+                                                            disabled={isFixingPreflight}
+                                                            className="px-3 py-1.5 text-xs bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg disabled:opacity-50 flex items-center gap-1"
+                                                        >
+                                                            {isFixingPreflight ? (
+                                                                <Loader2 className="w-3 h-3 animate-spin" />
+                                                            ) : null}
+                                                            Whitelistear faltantes
+                                                        </button>
+                                                    )}
+                                                    {finState.preflightIssues.some((i) => i.fix === 'register_campaign') && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={fixRegisterCampaign}
+                                                            disabled={isFixingPreflight || !finState.managerAddress}
+                                                            className="px-3 py-1.5 text-xs bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg disabled:opacity-50 flex items-center gap-1"
+                                                        >
+                                                            {isFixingPreflight ? (
+                                                                <Loader2 className="w-3 h-3 animate-spin" />
+                                                            ) : null}
+                                                            Registrar campaña en Manager
+                                                        </button>
+                                                    )}
+                                                    {finState.preflightIssues.some((i) => i.fix === 'approve_funds') && (
+                                                        <p className="text-xs text-amber-600 self-center">
+                                                            Usá Step 1 (Approve Funds) para el allowance.
+                                                        </p>
+                                                    )}
+                                                    <button
+                                                        type="button"
+                                                        onClick={checkPrerequisites}
+                                                        disabled={isFixingPreflight || finState.step1Status === 'checking'}
+                                                        className="px-3 py-1.5 text-xs border border-border hover:bg-secondary/50 rounded-lg disabled:opacity-50"
+                                                    >
+                                                        Re-verificar
+                                                    </button>
+                                                </div>
+                                                <p className="text-[10px] text-muted-foreground">
+                                                    Whitelist requiere USER_MANAGER en IndaRoot. Registrar campaña requiere OPERATOR en el Manager del país.
+                                                </p>
                                             </div>
                                         )}
                                     </div>
