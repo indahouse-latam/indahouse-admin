@@ -10,6 +10,7 @@ import {
     PieChart,
     Navigation
 } from "lucide-react";
+import { CountryManagers } from "@/modules/countries/components/CountryManagers";
 
 export default function MarketsPage() {
     const { data, isLoading } = useMarkets();
@@ -111,6 +112,8 @@ export default function MarketsPage() {
                         </button>
                     </div>
                 </div>
+
+                <CountryManagers />
             </div>
         </AdminLayout>
     );

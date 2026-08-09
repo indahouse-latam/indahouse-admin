@@ -1,3 +1,7 @@
+const { getRequiredRpcUrl } = require('./required-rpc');
+
+const RPC_URL = getRequiredRpcUrl();
+
 const { createWalletClient, createPublicClient, http, parseEther } = require('viem');
 const { polygonAmoy } = require('viem/chains');
 const { privateKeyToAccount } = require('viem/accounts');
@@ -19,13 +23,13 @@ async function sendPOL() {
     const walletClient = createWalletClient({
         account,
         chain: polygonAmoy,
-        transport: http('https://rpc-amoy.polygon.technology'),
+        transport: http(RPC_URL),
     });
 
     // Create public client for checking balance
     const publicClient = createPublicClient({
         chain: polygonAmoy,
-        transport: http('https://rpc-amoy.polygon.technology'),
+        transport: http(RPC_URL),
     });
 
     try {

@@ -10,7 +10,8 @@ import {
     XCircle,
     Loader2,
     AlertTriangle,
-    RefreshCw
+    RefreshCw,
+    Globe
 } from "lucide-react";
 import {
     IndaRootAbi,
@@ -24,7 +25,20 @@ import {
 import { checkHasRole, executeContractWriteWithKey, waitForTransaction, createUserPublicClient } from "@/utils/blockchain.utils";
 import { currentContracts, DEFAULT_CHAIN_ID } from "@/config/contracts";
 import { Abi, isAddress } from "viem";
-import { getPrivateKeyFromLocalStorage } from "@/utils/nyx-wallet.ultils";
+import { getPrivateKeyFromSession } from "@/utils/nyx-wallet.ultils";
+import { useAuth } from "@/providers/AuthProvider";
+import { useCountries } from "@/modules/properties/hooks/useCountries";
+
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+
+function countryCodeToBytes32(code: string): `0x${string}` {
+    const upperCode = code.toUpperCase();
+    return `0x${upperCode
+        .split('')
+        .map(c => c.charCodeAt(0).toString(16))
+        .join('')
+        .padEnd(64, '0')}` as `0x${string}`;
+}
 
 // Contract addresses según entorno (QA = Polygon Amoy, Production = Polygon)
 const POLYGON_CONTRACTS = {
@@ -50,7 +64,7 @@ interface RoleOption {
     label: string;
     description: string;
     roleHash: `0x${string}`;
-    contractKey: 'indaRoot' | 'propertyRegistry' | 'indaAdminRouter' | 'manager';
+    contractKey: 'indaRoot' | 'propertyRegistry' | 'indaAdminRouter' | 'manager' | 'commitFactory';
     status: RoleStatus;
     grantStatus: GrantStatus;
     selected: boolean;
@@ -73,12 +87,17 @@ interface AdminTransferContract {
 
 
 export default function RolesPage() {
+    const { user } = useAuth();
+    const { data: countries } = useCountries();
     // Tab state
     const [activeTab, setActiveTab] = useState<'admin' | 'roles'>('admin');
 
     // Role management state
     const [privateKey, setPrivateKey] = useState('');
     const [targetAddress, setTargetAddress] = useState('');
+    /** País del Manager por-país (OPERATOR / CERT se otorgan en ese Manager, no en el default de config) */
+    const [managerCountryCode, setManagerCountryCode] = useState('AR');
+    const [resolvedManagerAddress, setResolvedManagerAddress] = useState<string | null>(null);
     const [isGranting, setIsGranting] = useState(false);
     const [isCheckingRoles, setIsCheckingRoles] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -209,8 +228,8 @@ export default function RolesPage() {
         },
         {
             id: 'operator_manager',
-            label: 'Operator (Manager)',
-            description: 'Permisos de operador en el contract Manager',
+            label: 'Operator (Manager por país)',
+            description: 'OPERATOR_ROLE en el Manager del país seleccionado. Necesario para otorgar CERT (roleAdmin).',
             roleHash: ROLE_HASHES.OPERATOR_ROLE,
             contractKey: 'manager',
             status: 'unchecked',
@@ -218,9 +237,19 @@ export default function RolesPage() {
             selected: false,
         },
         {
+            id: 'operator_commit_factory',
+            label: 'Operator (CommitFactory)',
+            description: 'Permisos de operador para createCampaign en CommitFactory',
+            roleHash: ROLE_HASHES.OPERATOR_ROLE,
+            contractKey: 'commitFactory',
+            status: 'unchecked',
+            grantStatus: 'idle',
+            selected: false,
+        },
+        {
             id: 'certificate_manager',
-            label: 'Certificate Manager (Manager)',
-            description: 'Crear CMDs y mint de NFTs de certificados',
+            label: 'Certificate Manager (Manager por país)',
+            description: 'CERTIFICATE_MANAGER_ROLE: createCertificate / CMDs en el Manager del país',
             roleHash: ROLE_HASHES.CERTIFICATE_MANAGER_ROLE,
             contractKey: 'manager',
             status: 'unchecked',
@@ -239,7 +268,29 @@ export default function RolesPage() {
         },
     ]);
 
-    const getContractAddress = (key: string): `0x${string}` => {
+    const resolveCountryManager = async (): Promise<`0x${string}`> => {
+        const code = managerCountryCode.trim().toUpperCase();
+        if (!code || code.length < 2) {
+            throw new Error('Selecciona el país del Manager');
+        }
+
+        const publicClient = createUserPublicClient(DEFAULT_CHAIN_ID);
+        const managerAddress = await publicClient.readContract({
+            address: currentContracts.indahouseRegistry as `0x${string}`,
+            abi: IndahouseRegistryAbi as Abi,
+            functionName: 'getManager',
+            args: [countryCodeToBytes32(code)],
+        }) as `0x${string}`;
+
+        if (!managerAddress || managerAddress === ZERO_ADDRESS) {
+            throw new Error(`No hay Manager registrado para ${code}. Créalo primero en Countries → Managers.`);
+        }
+
+        setResolvedManagerAddress(managerAddress);
+        return managerAddress;
+    };
+
+    const getContractAddress = (key: string, managerOverride?: `0x${string}`): `0x${string}` => {
         switch (key) {
             case 'indaRoot':
                 return POLYGON_CONTRACTS.indaRoot;
@@ -248,7 +299,13 @@ export default function RolesPage() {
             case 'indaAdminRouter':
                 return currentContracts.IndaAdminRouter as `0x${string}`;
             case 'manager':
+                if (managerOverride) return managerOverride;
+                if (resolvedManagerAddress && isAddress(resolvedManagerAddress)) {
+                    return resolvedManagerAddress as `0x${string}`;
+                }
                 return currentContracts.manager as `0x${string}`;
+            case 'commitFactory':
+                return currentContracts.commitFactory as `0x${string}`;
             default:
                 throw new Error(`Unknown contract key: ${key}`);
         }
@@ -264,6 +321,8 @@ export default function RolesPage() {
                 return IndaAdminRouterAbi;
             case 'manager':
                 return ManagerAbi;
+            case 'commitFactory':
+                return CommitFactoryAbi;
             default:
                 return IndaRootAbi;
         }
@@ -307,17 +366,12 @@ export default function RolesPage() {
 
     const autoDetectAdminKey = async (address: string) => {
         try {
-            const localstorageUser = localStorage.getItem('admin_user');
-            if (!localstorageUser) return;
+            const userAddress = user?.walletAddress;
+            if (!userAddress || userAddress.toLowerCase() !== address.toLowerCase()) return;
 
-            const user = JSON.parse(localstorageUser);
-            const userAddress = user.walletAddress;
-
-            if (userAddress && userAddress.toLowerCase() === address.toLowerCase()) {
-                const privateKey = await getPrivateKeyFromLocalStorage();
-                setAdminKey(privateKey);
-                setAutoDetectedAdminKey(true);
-            }
+            const pk = await getPrivateKeyFromSession();
+            setAdminKey(pk);
+            setAutoDetectedAdminKey(true);
         } catch (err) {
             console.error('Could not auto-detect admin key:', err);
         }
@@ -596,6 +650,16 @@ export default function RolesPage() {
         setIsCheckingRoles(true);
         setError(null);
 
+        let managerAddress: `0x${string}` | undefined;
+        let managerResolveError: string | null = null;
+        if (managerCountryCode.trim()) {
+            try {
+                managerAddress = await resolveCountryManager();
+            } catch (err) {
+                managerResolveError = err instanceof Error ? err.message : 'No se pudo resolver el Manager del país';
+            }
+        }
+
         const updatedRoles = [...roles];
 
         for (let i = 0; i < updatedRoles.length; i++) {
@@ -603,7 +667,13 @@ export default function RolesPage() {
             setRoles([...updatedRoles]);
 
             try {
-                const contractAddress = getContractAddress(updatedRoles[i].contractKey);
+                if (updatedRoles[i].contractKey === 'manager' && !managerAddress) {
+                    updatedRoles[i].status = 'error';
+                    setRoles([...updatedRoles]);
+                    continue;
+                }
+
+                const contractAddress = getContractAddress(updatedRoles[i].contractKey, managerAddress);
                 const abi = getAbiForContract(updatedRoles[i].contractKey);
 
                 const hasRole = await checkHasRole({
@@ -623,6 +693,7 @@ export default function RolesPage() {
             setRoles([...updatedRoles]);
         }
 
+        if (managerResolveError) setError(managerResolveError);
         setIsCheckingRoles(false);
     };
 
@@ -650,7 +721,18 @@ export default function RolesPage() {
             return;
         }
 
-        const selectedRoles = roles.filter(r => r.selected && r.status !== 'granted');
+        // OPERATOR before CERT on Manager (CERT roleAdmin = OPERATOR)
+        const selectedRoles = roles
+            .filter(r => r.selected && r.status !== 'granted')
+            .sort((a, b) => {
+                const rank = (r: RoleOption) => {
+                    if (r.id === 'operator_manager') return 0;
+                    if (r.id === 'certificate_manager') return 1;
+                    return 2;
+                };
+                return rank(a) - rank(b);
+            });
+
         if (selectedRoles.length === 0) {
             setError('Please select at least one role to grant (roles already granted are skipped)');
             return;
@@ -658,6 +740,18 @@ export default function RolesPage() {
 
         setError(null);
         setSuccessMessage(null);
+        setIsGranting(true);
+
+        let managerAddress: `0x${string}` | undefined;
+        if (selectedRoles.some(r => r.contractKey === 'manager')) {
+            try {
+                managerAddress = await resolveCountryManager();
+            } catch (err) {
+                setError(err instanceof Error ? err.message : 'No se pudo resolver el Manager del país');
+                setIsGranting(false);
+                return;
+            }
+        }
 
         let successCount = 0;
         let errorCount = 0;
@@ -668,7 +762,7 @@ export default function RolesPage() {
             ));
 
             try {
-                const contractAddress = getContractAddress(role.contractKey);
+                const contractAddress = getContractAddress(role.contractKey, managerAddress);
                 const abi = getAbiForContract(role.contractKey);
 
                 const hash = await executeContractWriteWithKey({
@@ -686,7 +780,7 @@ export default function RolesPage() {
                     r.id === role.id ? { ...r, grantStatus: 'success', status: 'granted', selected: false } : r
                 ));
                 successCount++;
-            } catch (err: any) {
+            } catch (err: unknown) {
                 console.error(`Error granting role ${role.id}:`, err);
                 setRoles(prev => prev.map(r =>
                     r.id === role.id ? { ...r, grantStatus: 'error' } : r
@@ -695,13 +789,14 @@ export default function RolesPage() {
             }
         }
 
+        setIsGranting(false);
 
         if (successCount > 0 && errorCount === 0) {
-            setSuccessMessage(`Successfully granted ${successCount} role(s)`);
+            setSuccessMessage(`Successfully granted ${successCount} role(s)${managerAddress ? ` on Manager ${managerCountryCode.toUpperCase()}` : ''}`);
         } else if (successCount > 0 && errorCount > 0) {
             setSuccessMessage(`Granted ${successCount} role(s), ${errorCount} failed`);
         } else if (errorCount > 0) {
-            setError(`Failed to grant ${errorCount} role(s)`);
+            setError(`Failed to grant ${errorCount} role(s). Para Manager CERT hace falta que la private key tenga OPERATOR_ROLE en ese Manager.`);
         }
     };
 
@@ -981,10 +1076,54 @@ export default function RolesPage() {
                                             type="text"
                                             value={targetAddress}
                                             onChange={(e) => setTargetAddress(e.target.value)}
-                                            placeholder="0x..."
+                                            placeholder="0x... wallet operativa"
                                             className="w-full bg-secondary/30 border border-border rounded-xl pl-12 pr-4 py-4 text-sm outline-none focus:ring-2 focus:ring-primary/50 transition-all font-mono"
                                         />
                                     </div>
+                                </div>
+
+                                {/* Country Manager (for OPERATOR / CERT on per-country Manager) */}
+                                <div className="space-y-4">
+                                    <label className="text-sm font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                                        <Globe className="w-4 h-4" />
+                                        País del Manager
+                                    </label>
+                                    <select
+                                        value={managerCountryCode}
+                                        onChange={(e) => {
+                                            setManagerCountryCode(e.target.value);
+                                            setResolvedManagerAddress(null);
+                                            setRoles(prev => prev.map(r =>
+                                                r.contractKey === 'manager'
+                                                    ? { ...r, status: 'unchecked', grantStatus: 'idle', selected: false }
+                                                    : r
+                                            ));
+                                        }}
+                                        className="w-full bg-secondary/30 border border-border rounded-xl px-4 py-4 text-sm outline-none focus:ring-2 focus:ring-primary/50 transition-all"
+                                    >
+                                        <option value="">Seleccionar país</option>
+                                        {countries?.map((country) => (
+                                            <option key={country.id} value={country.code}>
+                                                {country.name} ({country.code})
+                                            </option>
+                                        ))}
+                                        {!countries?.some(c => c.code === 'AR') && (
+                                            <option value="AR">Argentina (AR)</option>
+                                        )}
+                                        {!countries?.some(c => c.code === 'CO') && (
+                                            <option value="CO">Colombia (CO)</option>
+                                        )}
+                                    </select>
+                                    <p className="text-xs text-muted-foreground">
+                                        OPERATOR y Certificate Manager se otorgan en el Manager de este país (vía IndahouseRegistry.getManager).
+                                        Private key: Registry defaultAdmin (tiene OPERATOR en el Manager al crearlo).
+                                    </p>
+                                    {resolvedManagerAddress && (
+                                        <div className="bg-background p-3 rounded-lg border border-border text-xs font-mono break-all">
+                                            <span className="text-muted-foreground">Manager {managerCountryCode.toUpperCase()}: </span>
+                                            {resolvedManagerAddress}
+                                        </div>
+                                    )}
                                     <button
                                         onClick={checkRoles}
                                         disabled={isCheckingRoles || !targetAddress}
@@ -1072,7 +1211,11 @@ export default function RolesPage() {
                                 </h3>
                                 <div className="text-xs text-muted-foreground space-y-3">
                                     <div>
-                                        <span className="font-medium text-foreground">Crear Tokens:</span>
+                                        <span className="font-medium text-foreground">Crear Tokens / CMD (por país):</span>
+                                        <p>Operator + Certificate Manager en el Manager del país (ej. AR)</p>
+                                    </div>
+                                    <div>
+                                        <span className="font-medium text-foreground">Crear Tokens (registry):</span>
                                         <p>Properties Manager (PropertyRegistry)</p>
                                     </div>
                                     <div>

@@ -44,3 +44,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 complete_campaign_flow.sh
+
+!/.env.qa.example
+!/.env.production.example

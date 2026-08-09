@@ -11,10 +11,12 @@ interface SectionEditorProps {
   content: PropertyFeedContent;
   propertyId: string;
   onUpdate?: () => void;
+  requireEvenFiles?: boolean;
 }
 
-export function SectionEditor({ section, content, propertyId, onUpdate }: SectionEditorProps) {
+export function SectionEditor({ section, content, propertyId, onUpdate, requireEvenFiles }: SectionEditorProps) {
   const [localMedia, setLocalMedia] = useState(content.media);
+  const isBeforeAfterSection = section.sectionKey === 'before_after_comparisons';
   const {
     uploadMedia,
     isUploading,
@@ -131,7 +133,15 @@ export function SectionEditor({ section, content, propertyId, onUpdate }: Sectio
         onReorder={handleReorder}
         isUploading={isUploading}
         isDeleting={isDeleting}
-        mediaType={getMediaTypeFromSectionKey(section.sectionKey)}
+        mediaType={isBeforeAfterSection ? 'IMAGE' : getMediaTypeFromSectionKey(section.sectionKey)}
+        requiredExactFiles={isBeforeAfterSection ? 2 : undefined}
+        enforceSingleBatch={isBeforeAfterSection}
+        requireEvenFiles={
+          requireEvenFiles
+          && !section.sectionKey.toLowerCase().includes('cover')
+          && getMediaTypeFromSectionKey(section.sectionKey) !== 'PDF'
+          && getMediaTypeFromSectionKey(section.sectionKey) !== 'VIDEO'
+        }
       />
     </div>
   );

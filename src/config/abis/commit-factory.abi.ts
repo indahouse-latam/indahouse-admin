@@ -35,6 +35,19 @@ export const CommitFactoryAbi = [
     },
     {
         "type": "function",
+        "name": "OPERATOR_ROLE",
+        "inputs": [],
+        "outputs": [
+            {
+                "name": "",
+                "type": "bytes32",
+                "internalType": "bytes32"
+            }
+        ],
+        "stateMutability": "view"
+    },
+    {
+        "type": "function",
         "name": "acceptDefaultAdminTransfer",
         "inputs": [],
         "outputs": [],
@@ -694,4 +707,4 @@ export const CommitFactoryAbi = [
         "name": "ZeroAddress",
         "inputs": []
     }
-]
+] as const;

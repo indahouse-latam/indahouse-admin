@@ -1,4 +1,8 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
+const { getRequiredRpcUrl } = require('./required-rpc');
+
+const RPC_URL = getRequiredRpcUrl();
+
 const { createPublicClient, http, parseAbi, encodeFunctionData, decodeAbiParameters } = require('viem');
 const { polygonAmoy } = require('viem/chains');
 
@@ -10,9 +14,6 @@ const { polygonAmoy } = require('viem/chains');
  */
 
 const CONFIG = {
-    RPC_URL: process.env.RPC_URL || 'https://rpc-amoy.polygon.technology',
-    ALCHEMY_RPC:
-        process.env.ALCHEMY_RPC || 'https://polygon-amoy.g.alchemy.com/v2/qH_uhB7EN-Dm4gagZOnioXIsXcV5q6C2',
     INDA_ADMIN_ROUTER: process.env.INDA_ADMIN_ROUTER || '0x524BEfC17B4c8BE2d1d31ed7d5E0A5260c83a6b1',
     INDA_ROOT: process.env.INDA_ROOT || '0xA19006C5Fe8baa747317b811c9D127cc762A5878',
     BASE_TOKEN: process.env.BASE_TOKEN || '0x6C9A47762AAE694067903F4A7aB65E074488c625',
@@ -69,7 +70,7 @@ async function rawEthCall(rpcUrl, from, to, data, gasHex = '0x1C9C380') {
 }
 
 async function main() {
-    const publicClient = createPublicClient({ chain: polygonAmoy, transport: http(CONFIG.ALCHEMY_RPC) });
+    const publicClient = createPublicClient({ chain: polygonAmoy, transport: http(RPC_URL) });
     console.log('='.repeat(80));
     console.log(' VALIDATE FINALIZATION READY');
     console.log('='.repeat(80));
@@ -242,7 +243,7 @@ async function main() {
         outputs: [{ type: 'uint256' }, { type: 'uint256' }, { type: 'uint256' }],
     }];
     const mintCalldata = encodeFunctionData({ abi: mintAbi, functionName: 'mintINDHWithBase', args: [investments] });
-    const mintCall = await rawEthCall(CONFIG.ALCHEMY_RPC, CONFIG.INDA_ADMIN_ROUTER, CONFIG.INDA_ROOT, mintCalldata);
+    const mintCall = await rawEthCall(RPC_URL, CONFIG.INDA_ADMIN_ROUTER, CONFIG.INDA_ROOT, mintCalldata);
     check(!mintCall.error, 'eth_call mintINDHWithBase', mintCall.error ? decodeRevert(mintCall.error.data) : 'ok');
 
     // Simulate finalize
@@ -254,7 +255,7 @@ async function main() {
         functionName: 'finalizeAndDistributeCampaignBatched',
         args: [CONFIG.CAMPAIGN_ADDR, CONFIG.COUNTRY_CODE, CONFIG.TOKEN_ADDR, CONFIG.BASE_TOKEN, CONFIG.INDA_ROOT, 0n, 1n],
     });
-    const finalizeCall = await rawEthCall(CONFIG.ALCHEMY_RPC, CONFIG.EXECUTOR, CONFIG.INDA_ADMIN_ROUTER, finalizeData);
+    const finalizeCall = await rawEthCall(RPC_URL, CONFIG.EXECUTOR, CONFIG.INDA_ADMIN_ROUTER, finalizeData);
     check(!finalizeCall.error, 'eth_call finalizeAndDistributeCampaignBatched', finalizeCall.error ? decodeRevert(finalizeCall.error.data) : 'ok');
 
     console.log('\n' + '='.repeat(80));
@@ -274,4 +275,3 @@ main().catch((error) => {
     console.error(error?.shortMessage || error?.message || error);
     process.exit(1);
 });
-

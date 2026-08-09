@@ -9,6 +9,19 @@ import type {
 } from '../types/property-feed.types';
 
 export class PropertyFeedService {
+  static async createGlobalSection(payload: {
+    section_key: string;
+    section_name: string;
+    section_description?: string;
+    is_active: boolean;
+  }): Promise<PropertyFeedSection> {
+    const response = await fetchApi('/feed/sections', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+    return response.data || response;
+  }
+
   static async getPropertyFeed(propertyId: string): Promise<PropertyFeed> {
     const response = await fetchApi(`/properties/${propertyId}/feed`);
     return response.data || response;
@@ -67,7 +80,7 @@ export class PropertyFeedService {
     const formData = new FormData();
 
     files.forEach((file) => {
-      formData.append('files', file);
+      formData.append('files[]', file, file.name);
     });
 
     formData.append('mediaType', mediaType);
@@ -113,7 +126,7 @@ export class PropertyFeedService {
     type: 'document' | 'financial' = 'document'
   ): Promise<{ uploaded: unknown[]; corrupted: unknown[] }> {
     const formData = new FormData();
-    files.forEach((file) => formData.append('files', file));
+    files.forEach((file) => formData.append('files[]', file, file.name));
     formData.append('type', type);
 
     const response = await fetchApi<{

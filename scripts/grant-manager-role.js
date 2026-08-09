@@ -1,8 +1,16 @@
-const { createWalletClient, createPublicClient, http } = require('viem');
+const { getRequiredRpcUrl } = require('./required-rpc');
+
+const RPC_URL = getRequiredRpcUrl();
+
+const { createWalletClient, createPublicClient, http, parseAbi } = require('viem');
 const { polygonAmoy } = require('viem/chains');
 const { privateKeyToAccount } = require('viem/accounts');
-const { ManagerAbi } = require('../src/config/abis/manager.abi.ts');
-const { currentContracts } = require('../src/config/contracts.ts');
+
+const MANAGER_ADDRESS = '0x54c59644FA651091038F144E15d0952Ce1BC9558';
+const ManagerAbi = parseAbi([
+    'function hasRole(bytes32 role, address account) view returns (bool)',
+    'function grantRole(bytes32 role, address account)',
+]);
 
 // Configuración
 const ADMIN_PRIVATE_KEY = ''; // Coloca aquí la private key del admin actual
@@ -21,7 +29,7 @@ async function grantManagerRole() {
 
     // Crear cuenta desde private key
     const account = privateKeyToAccount(ADMIN_PRIVATE_KEY);
-    const managerAddress = currentContracts.manager;
+    const managerAddress = MANAGER_ADDRESS;
 
     console.log(`Manager Contract: ${managerAddress}`);
     console.log(`Granting from: ${account.address}`);
@@ -32,13 +40,13 @@ async function grantManagerRole() {
     const walletClient = createWalletClient({
         account,
         chain: polygonAmoy,
-        transport: http('https://rpc-amoy.polygon.technology'),
+        transport: http(RPC_URL),
     });
 
     // Crear public client para verificación
     const publicClient = createPublicClient({
         chain: polygonAmoy,
-        transport: http('https://rpc-amoy.polygon.technology'),
+        transport: http(RPC_URL),
     });
 
     try {

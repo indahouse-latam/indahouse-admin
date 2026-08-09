@@ -8,6 +8,12 @@ El entorno se define con la variable **`NEXT_PUBLIC_APP_ENV`**:
 - `NEXT_PUBLIC_APP_ENV=production` → contratos y chain de producción (Polygon)
 - `NEXT_PUBLIC_APP_ENV=qa` o sin definir → QA (Polygon Amoy)
 
+La variable **`NEXT_PUBLIC_POLYGON_AMOY_RPC_URL`** es obligatoria en Development, Preview y Production. Debe contener una URL HTTPS activa para Polygon Amoy.
+
+Los valores `NEXT_PUBLIC_*` se incorporan durante el build. Cualquier cambio requiere volver a desplegar la aplicación.
+
+Todo proveedor privado configurado en una variable `NEXT_PUBLIC_*` queda visible en el navegador. Debe restringirse por dominio y cuota desde el panel del proveedor.
+
 ## Archivos de ejemplo
 
 - **`.env.qa.example`** – Variables para QA (develop). Copia a `.env.local` en local.
@@ -15,8 +21,9 @@ El entorno se define con la variable **`NEXT_PUBLIC_APP_ENV`**:
 
 ## Vercel
 
-1. **Production** (deploys desde `main`): en Environment Variables, asignar a **Production** y definir `NEXT_PUBLIC_APP_ENV=production` más las variables de API, Wallet, Google Maps, etc.
-2. **Preview** (deploys desde `develop` u otras ramas): asignar a **Preview** y definir `NEXT_PUBLIC_APP_ENV=qa` (o dejarlo sin definir) y las URLs/keys de QA.
+1. **Production** (deploys desde `main`): en Environment Variables, asignar a **Production** y definir `NEXT_PUBLIC_APP_ENV=production`, `NEXT_PUBLIC_POLYGON_AMOY_RPC_URL` y las variables de API, Wallet, Google Maps, etc.
+2. **Preview** (deploys desde `develop` u otras ramas): asignar a **Preview** y definir `NEXT_PUBLIC_APP_ENV=qa` (o dejarlo sin definir), `NEXT_PUBLIC_POLYGON_AMOY_RPC_URL` y las URLs/keys de QA.
+3. **Development**: definir `NEXT_PUBLIC_POLYGON_AMOY_RPC_URL` en `.env.local` junto con las demás variables locales.
 
 ## Contratos
 

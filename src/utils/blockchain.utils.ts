@@ -1,14 +1,33 @@
-import { createWalletClient, createPublicClient, http, type Hash, type TransactionReceipt, type Abi } from 'viem';
+import { createWalletClient, createPublicClient, http, type Hash, type TransactionReceipt, type Abi, ContractFunctionRevertedError } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { baseSepolia, base, polygonAmoy, polygon } from 'viem/chains';
 import { getPrivateKey } from './nyx-wallet.ultils';
-import { LocalStorageUser } from '@/providers/AuthProvider';
+import { fetchWalletCredentials } from '@/utils/auth-session';
 import { DEFAULT_CHAIN_ID } from '@/config/contracts';
+import { POLYGON_AMOY_RPC_URL } from '@/config/env';
+
+/**
+ * Parses contract errors and returns a user-friendly message
+ */
+export const parseContractError = (error: unknown): string => {
+    if (error instanceof ContractFunctionRevertedError) {
+        return error.reason || error.errorName || 'Transaction reverted';
+    }
+    if (error instanceof Error) {
+        if (error.message.includes('Internal JSON-RPC error')) {
+            const reasonMatch = error.message.match(/"reason":"([^"]+)"/);
+            if (reasonMatch) return reasonMatch[1];
+            return 'Transaction failed on chain';
+        }
+        return error.message;
+    }
+    return 'Unknown error occurred';
+};
 
 // Get RPC URL based on chain
 const getRpcUrl = (chainId: number) => {
     if (chainId === 84532) return 'https://sepolia.base.org';
-    if (chainId === 80002) return 'https://rpc-amoy.polygon.technology';
+    if (chainId === 80002) return POLYGON_AMOY_RPC_URL;
     if (chainId === 137) return 'https://polygon.drpc.org';
     return 'https://mainnet.base.org';
 };
@@ -22,16 +41,11 @@ const getChain = (chainId: number) => {
 };
 
 /**
- * Creates a wallet client using the user's private key from localStorage
+ * Crea el wallet client con la clave vía sesión API (cookie + /auth/wallet-token).
  */
 export const createUserWalletClient = async (chainId: number = DEFAULT_CHAIN_ID) => {
-    const localstorageUser = localStorage.getItem('admin_user');
-    if (!localstorageUser) {
-        throw new Error('User not authenticated');
-    }
-
-    const user: LocalStorageUser = JSON.parse(localstorageUser);
-    const privateKey = await getPrivateKey(user.walletId, user.token);
+    const { walletId, token } = await fetchWalletCredentials();
+    const privateKey = await getPrivateKey(walletId, token);
 
     if (!privateKey.startsWith('0x')) {
         throw new Error('Invalid private key format');
@@ -119,18 +133,26 @@ export const executeAndWaitForTransaction = async <TAbi extends Abi>(params: {
     chainId?: number;
     gasLimit?: bigint;
     confirmations?: number;
+    privateKey?: `0x${string}`;
 }) => {
-    const { confirmations = 1, ...writeParams } = params;
+    const { confirmations = 1, privateKey, ...writeParams } = params;
 
-    // Execute transaction
-    const hash = await executeContractWrite(writeParams);
+    let hash: Hash;
+    if (privateKey) {
+        hash = await executeContractWriteWithKey({ ...writeParams, privateKey });
+    } else {
+        hash = await executeContractWrite(writeParams);
+    }
 
-    // Wait for confirmation
     const receipt = await waitForTransaction({
         hash,
         chainId: params.chainId,
         confirmations,
     });
+
+    if (receipt.status === 'reverted') {
+        throw new Error('Transaction reverted');
+    }
 
     return { hash, receipt };
 };

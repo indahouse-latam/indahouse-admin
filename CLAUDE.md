@@ -141,6 +141,7 @@ NEXT_PUBLIC_WALLET_URL         # Wallet API URL
 NEXT_PUBLIC_WALLET_API_KEY     # Wallet API key
 NEXT_PUBLIC_GOOGLE_MAPS_KEY    # Google Maps API key for location fields
 NEXT_PUBLIC_APP_ENV            # "qa" (develop) or "production" (main). Default: qa
+NEXT_PUBLIC_POLYGON_AMOY_RPC_URL # Required Polygon Amoy HTTPS RPC URL. Recommended: https://polygon-amoy.drpc.org
 ```
 
 See **ENV.md** and `.env.qa.example` / `.env.production.example` for QA vs Production setup (main → production, develop → qa).
@@ -363,8 +364,8 @@ const hash = await executeContractWriteWithKey({
 
 #### RPC Endpoints
 
-Configured in `blockchain.utils.ts`:
-- **Polygon Amoy**: `https://rpc-amoy.polygon.technology`
+Configured through runtime environment and `blockchain.utils.ts`:
+- **Polygon Amoy**: requires `NEXT_PUBLIC_POLYGON_AMOY_RPC_URL`; recommended value: `https://polygon-amoy.drpc.org`
 - **Base Sepolia**: `https://sepolia.base.org`
 - **Base Mainnet**: `https://mainnet.base.org`
 

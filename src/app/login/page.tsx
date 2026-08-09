@@ -1,9 +1,8 @@
 'use client';
 
-import { useState, Suspense, useEffect } from 'react';
+import { useState, Suspense } from 'react';
 import { useAuth } from '@/providers/AuthProvider';
 import { ShieldCheck, Mail, Loader2 } from 'lucide-react';
-import { useSearchParams } from 'next/navigation';
 
 export default function LoginPage() {
     return (
@@ -18,25 +17,7 @@ function LoginForm() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isGoogleLoading, setIsGoogleLoading] = useState(false);
     const [error, setError] = useState('');
-    const { login, verifyGoogleToken } = useAuth();
-    const searchParams = useSearchParams();
-
-    // Handle Google Callback
-    useEffect(() => {
-        const token = searchParams.get('token') || searchParams.get('sessionToken');
-        if (token) {
-            const handleToken = async () => {
-                setIsGoogleLoading(true);
-                try {
-                    await verifyGoogleToken(token);
-                } catch (err: any) {
-                    setError(err.message || 'Error en autenticación con Google.');
-                    setIsGoogleLoading(false);
-                }
-            };
-            handleToken();
-        }
-    }, [searchParams, verifyGoogleToken]);
+    const { login } = useAuth();
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();

@@ -1,8 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, DollarSign, Home, Layout, Plus, Trash2, Loader2, Building2, FileText, List } from 'lucide-react';
-import { toast } from 'sonner';
+import { X, DollarSign, Home, Layout, Plus, Trash2, Loader2, Building2, FileText, List, Copy } from 'lucide-react';
 import { LocationFields, type LocationData } from '@/components/LocationFields';
 import { PropertyMultimediaSection } from '@/modules/campaigns/components/PropertyMultimediaSection';
 import { PropertyRiskSection } from './PropertyRiskSection';
@@ -16,18 +15,21 @@ interface EditPropertyModalProps {
     isOpen: boolean;
     onClose: () => void;
     property: Property;
+    /** Tras duplicar: p. ej. alinear el filtro de la lista con el estado de la copia (CREATED). */
+    onDuplicateSuccess?: (duplicated: Property) => void;
 }
 
 type TabType = 'general' | 'details' | 'location' | 'multimedia' | 'risk' | 'investment';
 
-export function EditPropertyModal({ isOpen, onClose, property }: EditPropertyModalProps) {
-    const { updateProperty, isUpdating } = useProperties();
+export function EditPropertyModal({ isOpen, onClose, property, onDuplicateSuccess }: EditPropertyModalProps) {
+    const { updateProperty, isUpdating, duplicateProperty, isDuplicating } = useProperties();
     const { builders, isLoading: buildersLoading, createBuilderAsync, isCreating: isCreatingBuilder } = usePropertyBuilders();
     const [newBuilderName, setNewBuilderName] = useState('');
     const [activeTab, setActiveTab] = useState<TabType>('general');
 
     const [formData, setFormData] = useState({
         name_reference: '',
+        render_url: '',
         description: '',
         price: '',
         valuation: '',
@@ -61,8 +63,10 @@ export function EditPropertyModal({ isOpen, onClose, property }: EditPropertyMod
             const shortLoc = property.location?.shortLocation || property.location?.short_location || '';
             const fullLoc = property.location?.fullLocation || property.location?.full_location || property.location?.address || '';
 
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setFormData({
                 name_reference: nameRef,
+                render_url: property.renderUrl || property.render_url || '',
                 description: property.description || '',
                 price: typeof property.price === 'string' ? property.price : property.price?.toString() || '',
                 valuation: typeof property.valuation === 'string' ? property.valuation : property.valuation?.toString() || '',
@@ -73,14 +77,14 @@ export function EditPropertyModal({ isOpen, onClose, property }: EditPropertyMod
                 built_time: builtTime.toString(),
                 buyback_time: buybackTime?.toString() || '12',
                 status: property.status || 'VERIFIED',
-                builder_id: (property as any).builder_id ?? (property as any).builder?.id ?? '',
+                builder_id: property.builder_id ?? property.builder?.id ?? '',
                 location: {
-                    id: (property.location as any)?.id,
+                    id: property.location.id,
                     address: property.location?.address || '',
                     full_location: fullLoc,
                     short_location: shortLoc,
-                    latitude: property.location?.latitude,
-                    longitude: property.location?.longitude
+                    latitude: property.location?.latitude ? parseFloat(property.location.latitude.toString()) : undefined,
+                    longitude: property.location?.longitude ? parseFloat(property.location.longitude.toString()) : undefined
                 },
                 main_characteristics: property.main_characteristics?.map(c => ({
                     id: c.id,
@@ -109,6 +113,7 @@ export function EditPropertyModal({ isOpen, onClose, property }: EditPropertyMod
         const payload = {
             id: property.id,
             name_reference: formData.name_reference,
+            ...(formData.render_url.trim() ? { render_url: formData.render_url.trim() } : {}),
             description: formData.description,
             price: Number.parseFloat(formData.price),
             valuation: Number.parseFloat(formData.valuation),
@@ -120,7 +125,7 @@ export function EditPropertyModal({ isOpen, onClose, property }: EditPropertyMod
             status: formData.status,
             builder_id: formData.builder_id || null,
             location: {
-                id: formData.location.id || crypto.randomUUID(),
+                id: formData.location.id || window.crypto.randomUUID(),
                 address: formData.location.address,
                 full_location: formData.location.full_location,
                 short_location: formData.location.short_location,
@@ -130,21 +135,21 @@ export function EditPropertyModal({ isOpen, onClose, property }: EditPropertyMod
             main_characteristics: formData.main_characteristics
                 .filter(char => char.label && char.value)
                 .map(char => ({
-                    id: char.id || crypto.randomUUID(),
+                    id: char.id || window.crypto.randomUUID(),
                     name: char.label,
                     description: char.value
                 })),
             extra_characteristics: formData.extra_characteristics
                 .filter(char => char.label)
                 .map(char => ({
-                    id: char.id || crypto.randomUUID(),
+                    id: char.id || window.crypto.randomUUID(),
                     name: char.label,
                     description: 'Yes'
                 })),
             monthly_expenses: formData.monthly_expenses
                 .filter(expense => expense.label && expense.amount)
                 .map(expense => ({
-                    id: expense.id || crypto.randomUUID(),
+                    id: expense.id || window.crypto.randomUUID(),
                     name: expense.label,
                     price: Number.parseFloat(expense.amount),
                     icon: 'dollar-sign'
@@ -168,7 +173,7 @@ export function EditPropertyModal({ isOpen, onClose, property }: EditPropertyMod
             ...formData,
             main_characteristics: [
                 ...formData.main_characteristics,
-                { id: crypto.randomUUID(), label: '', value: '', icon: 'star' }
+                { id: window.crypto.randomUUID(), label: '', value: '', icon: 'star' }
             ]
         });
     };
@@ -179,7 +184,7 @@ export function EditPropertyModal({ isOpen, onClose, property }: EditPropertyMod
             ...formData,
             extra_characteristics: [
                 ...formData.extra_characteristics,
-                { id: crypto.randomUUID(), label }
+                { id: window.crypto.randomUUID(), label }
             ]
         });
     };
@@ -189,7 +194,7 @@ export function EditPropertyModal({ isOpen, onClose, property }: EditPropertyMod
             ...formData,
             monthly_expenses: [
                 ...formData.monthly_expenses,
-                { id: crypto.randomUUID(), label: '', amount: '0' }
+                { id: window.crypto.randomUUID(), label: '', amount: '0' }
             ]
         });
     };
@@ -209,9 +214,29 @@ export function EditPropertyModal({ isOpen, onClose, property }: EditPropertyMod
                             </p>
                         </div>
                     </div>
-                    <button onClick={onClose} className="p-2 hover:bg-secondary rounded-full transition-colors">
-                        <X className="w-5 h-5" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                if (window.confirm('¿Estás seguro de que deseas duplicar esta propiedad? Se creará una copia con todos los datos (excepto campañas) y el nombre modificado.')) {
+                                    duplicateProperty(property.id, {
+                                        onSuccess: (duplicated) => {
+                                            onDuplicateSuccess?.(duplicated);
+                                            onClose();
+                                        }
+                                    });
+                                }
+                            }}
+                            disabled={isDuplicating}
+                            className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded-lg hover:bg-indigo-500/20 transition-colors disabled:opacity-50"
+                        >
+                            {isDuplicating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Copy className="w-3.5 h-3.5" />}
+                            Duplicar
+                        </button>
+                        <button onClick={onClose} className="p-2 hover:bg-secondary rounded-full transition-colors">
+                            <X className="w-5 h-5" />
+                        </button>
+                    </div>
                 </div>
 
                 <div className="flex border-b border-border">
@@ -322,6 +347,17 @@ export function EditPropertyModal({ isOpen, onClose, property }: EditPropertyMod
                                             onChange={(e) => setFormData({ ...formData, buyback_time: e.target.value })}
                                         />
                                     </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-bold uppercase text-muted-foreground">Render URL (Opcional)</label>
+                                    <input
+                                        type="url"
+                                        className="w-full bg-secondary-100 border border-secondary-300 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
+                                        placeholder="Ej: https://meet.google.com/oog-zpga-wqe"
+                                        value={formData.render_url}
+                                        onChange={(e) => setFormData({ ...formData, render_url: e.target.value })}
+                                    />
                                 </div>
 
                                 <div className="space-y-2">
@@ -626,7 +662,7 @@ export function EditPropertyModal({ isOpen, onClose, property }: EditPropertyMod
                         <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
                             <PropertyMultimediaSection
                                 propertyId={property.id}
-                                onComplete={() => {}}
+                                onComplete={() => { }}
                             />
                         </div>
                     )}
