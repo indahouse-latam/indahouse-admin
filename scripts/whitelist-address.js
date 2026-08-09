@@ -13,7 +13,7 @@ const { privateKeyToAccount } = require('viem/accounts');
 //   Multiple addresses: node scripts/whitelist-address.js <KEY> <ADDR1> <ADDR2> ...
 // ============================================================================
 
-const INDA_ROOT = '0xA19006C5Fe8baa747317b811c9D127cc762A5878';
+const INDA_ROOT = '0x543F7dF0EBD524b3bE66277E18514B44BAC4b4e1';
 
 const setToWhitelistAbi = [{
     type: 'function', name: '_setToWhitelist',

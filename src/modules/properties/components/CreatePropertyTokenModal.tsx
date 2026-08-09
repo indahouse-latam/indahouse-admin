@@ -262,19 +262,33 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
                 managerAddress = networkConfig.manager as `0x${string}`;
             }
 
-            if (managerAddress === networkConfig.manager) {
+            // Manager missing, or exists but wallet lacks CERTIFICATE_MANAGER_ROLE
+            const needsManagerSetup =
+                managerStatus?.needsSetup === true
+                || managerAddress === zeroAddress
+                || (managerStatus?.exists === true && managerStatus?.hasRole === false);
+
+            if (needsManagerSetup) {
                 if (!privateKey) {
                     toast.error(
-                        `No manager configured for ${selectedCountryCode}. Please provide the master private key below to set up the manager.`,
+                        managerStatus?.exists
+                            ? `Manager for ${selectedCountryCode} exists but your wallet lacks CERTIFICATE_MANAGER_ROLE. Provide the master private key to grant it.`
+                            : `No manager configured for ${selectedCountryCode}. Provide the master private key to set up the manager.`,
                         { duration: 10000 }
                     );
                     throw new Error(
-                        `No manager found for ${selectedCountryCode} in registry. Provide the master private key to create and configure the manager.`
+                        managerStatus?.exists
+                            ? `Manager ${managerAddress} exists but ACCOUNT lacks CERTIFICATE_MANAGER_ROLE. Grant role with master key.`
+                            : `No manager found for ${selectedCountryCode} in registry. Provide the master private key to create and configure the manager.`
                     );
                 }
 
-                toast.info(`Setting up manager for ${selectedCountryCode}...`);
-                managerAddress = await setupManager();
+                toast.info(
+                    managerStatus?.exists
+                        ? `Granting CERTIFICATE_MANAGER_ROLE on ${selectedCountryCode} manager...`
+                        : `Setting up manager for ${selectedCountryCode}...`
+                );
+                managerAddress = await setupManager() as `0x${string}`;
                 toast.success(`Manager configured for ${selectedCountryCode}`);
                 setManagerStatus({ exists: true, address: managerAddress, hasRole: true, needsSetup: false });
             }
@@ -624,12 +638,17 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
                                         {managerStatus?.exists && managerStatus?.hasRole
                                             ? 'Manager configurado correctamente'
                                             : managerStatus?.exists && !managerStatus?.hasRole
-                                            ? 'Manager existe pero falta rol'
+                                            ? 'Manager existe pero falta CERTIFICATE_MANAGER_ROLE'
                                             : 'Manager no configurado para este país'}
                                     </p>
                                     {managerStatus?.address && (
                                         <p className="text-xs text-muted-foreground mt-1">
                                             Manager: {managerStatus.address}
+                                        </p>
+                                    )}
+                                    {managerStatus?.exists && !managerStatus?.hasRole && (
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                            Tu wallet no puede llamar createCertificate. Ingresá la master key abajo para otorgar CERTIFICATE_MANAGER_ROLE.
                                         </p>
                                     )}
                                     {!managerStatus?.exists && (

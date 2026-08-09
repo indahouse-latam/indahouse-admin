@@ -164,12 +164,18 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
                 }
                 managerForCampaign = managerFromRegistry;
             }
-            if (
-                currentContracts.manager &&
+            // currentContracts.manager is only the default (usually CO). Per-country managers
+            // from the registry are expected to differ — that is not an error.
+            console.log(
+                `Manager for ${selectedCountryCodeForBlockchain}: ${managerForCampaign}` +
+                (currentContracts.manager &&
                 currentContracts.manager.toLowerCase() !== managerForCampaign.toLowerCase()
-            ) {
-                toast.warning(
-                    `Manager mismatch detected. Using registry manager ${managerForCampaign} for blockchain country ${selectedCountryCodeForBlockchain} (DB country ${selectedCountryCode.toUpperCase()}).`
+                    ? ` (config default is ${currentContracts.manager})`
+                    : '')
+            );
+            if (selectedCountryCode.toUpperCase() !== selectedCountryCodeForBlockchain) {
+                toast.info(
+                    `País DB ${selectedCountryCode.toUpperCase()} → blockchain ${selectedCountryCodeForBlockchain}. Manager: ${managerForCampaign}`
                 );
             }
 
