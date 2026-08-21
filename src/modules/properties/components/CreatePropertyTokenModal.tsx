@@ -10,7 +10,8 @@ import { TokenFactoryAbi, ManagerAbi, PropertyRegistryAbi, IndahouseRegistryAbi 
 import { PoolFactoryAbi } from '@/config/abis/pool-factory.abi';
 import { currentContracts, DEFAULT_CHAIN_ID } from '@/config/contracts';
 import { toast } from 'sonner';
-import { createUserPublicClient, createUserWalletClient, executeAndWaitForTransaction, checkHasRole, parseContractError } from '@/utils/blockchain.utils';
+import { createUserPublicClient, executeAndWaitForTransaction, checkHasRole, parseContractError } from '@/utils/blockchain.utils';
+import { getSessionWalletAddress } from '@/modules/nyx-wallet';
 
 interface CreatePropertyTokenModalProps {
     isOpen: boolean;
@@ -91,8 +92,7 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
                 return;
             }
 
-            const walletClient = await createUserWalletClient(DEFAULT_CHAIN_ID);
-            const adminAddress = walletClient.account.address;
+            const adminAddress = await getSessionWalletAddress();
 
             const hasRole = await publicClient.readContract({
                 address: managerAddress,
@@ -133,8 +133,7 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
         const registryAddress = currentContracts.indahouseRegistry as `0x${string}`;
         const countryCodeBytes32 = countryCodeToBytes32(selectedCountry.code);
         const publicClient = createUserPublicClient(DEFAULT_CHAIN_ID);
-        const walletClient = await createUserWalletClient(DEFAULT_CHAIN_ID);
-        const adminAddress = walletClient.account.address;
+        const adminAddress = await getSessionWalletAddress();
 
         const hasAdminRole = await checkHasRole({
             contractAddress: registryAddress,
@@ -236,8 +235,7 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
             setLoadingStep('certificate');
             console.log('📋 Verifying manager certificate for country:', countryCodeForBlockchain, '(DB:', selectedCountryCode, ')');
             const publicClient = createUserPublicClient(chainId);
-            const walletClient = await createUserWalletClient(chainId);
-            const adminAddress = walletClient.account.address;
+            const adminAddress = await getSessionWalletAddress();
             const distributorReadAbi = parseAbi([
                 'function shareToken() view returns (address)',
                 'function rewardToken() view returns (address)',

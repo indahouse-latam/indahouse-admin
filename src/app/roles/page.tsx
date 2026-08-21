@@ -22,10 +22,9 @@ import {
     CommitFactoryAbi,
     ManagerAbi
 } from "@/config/abis";
-import { checkHasRole, executeContractWriteWithKey, waitForTransaction, createUserPublicClient } from "@/utils/blockchain.utils";
+import { checkHasRole, executeContractWriteWithKey, executeAndWaitForTransaction, waitForTransaction, createUserPublicClient } from "@/utils/blockchain.utils";
 import { currentContracts, DEFAULT_CHAIN_ID } from "@/config/contracts";
 import { Abi, isAddress } from "viem";
-import { getPrivateKeyFromSession } from "@/utils/nyx-wallet.ultils";
 import { useAuth } from "@/providers/AuthProvider";
 import { useCountries } from "@/modules/properties/hooks/useCountries";
 
@@ -109,7 +108,7 @@ export default function RolesPage() {
     const [adminKey, setAdminKey] = useState('');
     const [isBeginning, setIsBeginning] = useState(false);
     const [isAccepting, setIsAccepting] = useState(false);
-    const [autoDetectedAdminKey, setAutoDetectedAdminKey] = useState(false);
+    const [acceptWithSessionWallet, setAcceptWithSessionWallet] = useState(false);
 
 
     const [adminContracts, setAdminContracts] = useState<AdminTransferContract[]>([
@@ -364,17 +363,13 @@ export default function RolesPage() {
         ));
     };
 
-    const autoDetectAdminKey = async (address: string) => {
-        try {
-            const userAddress = user?.walletAddress;
-            if (!userAddress || userAddress.toLowerCase() !== address.toLowerCase()) return;
-
-            const pk = await getPrivateKeyFromSession();
-            setAdminKey(pk);
-            setAutoDetectedAdminKey(true);
-        } catch (err) {
-            console.error('Could not auto-detect admin key:', err);
-        }
+    const detectSessionWalletAdmin = (address: string) => {
+        const userAddress = user?.walletAddress;
+        const matches =
+            Boolean(userAddress) &&
+            isAddress(address) &&
+            userAddress!.toLowerCase() === address.toLowerCase();
+        setAcceptWithSessionWallet(matches);
     };
 
     const checkAdminStatus = async () => {
@@ -525,11 +520,11 @@ export default function RolesPage() {
 
         if (successCount > 0 && errorCount === 0) {
             setSuccessMessage(`✅ Successfully initiated admin transfer for ${successCount} contract(s)`);
-            autoDetectAdminKey(newAdminAddress);
+            detectSessionWalletAdmin(newAdminAddress);
         } else if (successCount > 0 && errorCount > 0) {
             setError(`⚠️ ${successCount} succeeded, ${errorCount} failed: ${failedContracts.join(', ')}`);
             setSuccessMessage(`✅ ${successCount} contract(s) ready for acceptance`);
-            autoDetectAdminKey(newAdminAddress);
+            detectSessionWalletAdmin(newAdminAddress);
         } else if (errorCount > 0) {
             setError(`❌ Failed to initiate transfer for: ${failedContracts.join(', ')}`);
         }
@@ -543,16 +538,22 @@ export default function RolesPage() {
             return;
         }
 
-        if (!adminKey) {
-            setError('Please enter the new admin private key');
-            return;
+        if (!acceptWithSessionWallet) {
+            if (!adminKey) {
+                setError('Enter the new admin private key, or set New Admin Address to your session Safe');
+                return;
+            }
+
+            const formattedKey = adminKey.startsWith('0x') ? adminKey : `0x${adminKey}`;
+            if (formattedKey.length !== 66) {
+                setError('Invalid admin private key format');
+                return;
+            }
         }
 
-        const formattedKey = adminKey.startsWith('0x') ? adminKey : `0x${adminKey}`;
-        if (formattedKey.length !== 66) {
-            setError('Invalid admin private key format');
-            return;
-        }
+        const protocolKey = !acceptWithSessionWallet
+            ? ((adminKey.startsWith('0x') ? adminKey : `0x${adminKey}`) as `0x${string}`)
+            : undefined;
 
         setIsAccepting(true);
         setError(null);
@@ -574,18 +575,30 @@ export default function RolesPage() {
                 // Manager uses acceptAdminTransfer, others use acceptDefaultAdminTransfer
                 const functionName = contract.useCustomFunctions ? 'acceptAdminTransfer' : 'acceptDefaultAdminTransfer';
 
-                const hash = await executeContractWriteWithKey({
-                    privateKey: formattedKey as `0x${string}`,
-                    contractAddress: address,
-                    abi,
-                    functionName,
-                    args: [],
-                    chainId: DEFAULT_CHAIN_ID
-                });
+                const { hash } = protocolKey
+                    ? {
+                        hash: await executeContractWriteWithKey({
+                            privateKey: protocolKey,
+                            contractAddress: address,
+                            abi,
+                            functionName,
+                            args: [],
+                            chainId: DEFAULT_CHAIN_ID,
+                        }),
+                    }
+                    : await executeAndWaitForTransaction({
+                        contractAddress: address,
+                        abi,
+                        functionName,
+                        args: [],
+                        chainId: DEFAULT_CHAIN_ID,
+                    });
 
                 console.log(`✅ Transaction sent for ${contract.label}: ${hash}`);
 
-                await waitForTransaction({ hash, chainId: DEFAULT_CHAIN_ID });
+                if (protocolKey) {
+                    await waitForTransaction({ hash, chainId: DEFAULT_CHAIN_ID });
+                }
 
                 console.log(`✅ Transfer accepted for ${contract.label}`);
 
@@ -954,7 +967,7 @@ export default function RolesPage() {
                                         onChange={(e) => {
                                             setNewAdminAddress(e.target.value);
                                             if (isAddress(e.target.value)) {
-                                                autoDetectAdminKey(e.target.value);
+                                                detectSessionWalletAdmin(e.target.value);
                                             }
                                         }}
                                         placeholder="0x..."
@@ -987,33 +1000,37 @@ export default function RolesPage() {
                         <div className="bg-secondary/10 border border-border rounded-2xl p-8 space-y-6">
                             <h3 className="font-bold text-lg">Step 2: Accept Transfer</h3>
 
-                            {/* Admin Key Input */}
                             <div className="space-y-4">
                                 <label className="text-sm font-bold text-muted-foreground uppercase tracking-wider">
                                     Admin Private Key
-                                    {autoDetectedAdminKey && (
-                                        <span className="ml-2 text-xs text-success normal-case">(Auto-detected)</span>
+                                    {acceptWithSessionWallet && (
+                                        <span className="ml-2 text-xs text-success normal-case">(Session Safe — biometrics)</span>
                                     )}
                                 </label>
-                                <div className="relative">
-                                    <Key className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                                    <input
-                                        type="password"
-                                        value={adminKey}
-                                        onChange={(e) => {
-                                            setAdminKey(e.target.value);
-                                            setAutoDetectedAdminKey(false);
-                                        }}
-                                        placeholder="0x..."
-                                        className="w-full bg-secondary/30 border border-border rounded-xl pl-12 pr-4 py-4 text-sm outline-none focus:ring-2 focus:ring-primary/50 transition-all font-mono"
-                                    />
-                                </div>
+                                {acceptWithSessionWallet ? (
+                                    <p className="text-sm text-muted-foreground">
+                                        New admin is your Nyx V3 Safe. Accept will prompt WebAuthn instead of a private key.
+                                    </p>
+                                ) : (
+                                    <div className="relative">
+                                        <Key className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                                        <input
+                                            type="password"
+                                            value={adminKey}
+                                            onChange={(e) => {
+                                                setAdminKey(e.target.value);
+                                                setAcceptWithSessionWallet(false);
+                                            }}
+                                            placeholder="0x..."
+                                            className="w-full bg-secondary/30 border border-border rounded-xl pl-12 pr-4 py-4 text-sm outline-none focus:ring-2 focus:ring-primary/50 transition-all font-mono"
+                                        />
+                                    </div>
+                                )}
                             </div>
 
-                            {/* Accept Button */}
                             <button
                                 onClick={acceptAdminTransfer}
-                                disabled={isAccepting || !adminKey || adminContracts.filter(c => c.status === 'pending').length === 0}
+                                disabled={isAccepting || (!acceptWithSessionWallet && !adminKey) || adminContracts.filter(c => c.status === 'pending').length === 0}
                                 className="w-full bg-success hover:bg-success/90 text-success-foreground py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-success/20 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 {isAccepting ? (

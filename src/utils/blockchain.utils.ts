@@ -1,14 +1,9 @@
-import { createWalletClient, createPublicClient, http, type Hash, type TransactionReceipt, type Abi, ContractFunctionRevertedError } from 'viem';
+import { createWalletClient, createPublicClient, http, encodeFunctionData, type Hash, type TransactionReceipt, type Abi, ContractFunctionRevertedError } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { baseSepolia, base, polygonAmoy, polygon } from 'viem/chains';
-import { getPrivateKey } from './nyx-wallet.ultils';
-import { fetchWalletCredentials } from '@/utils/auth-session';
 import { DEFAULT_CHAIN_ID } from '@/config/contracts';
 import { POLYGON_AMOY_RPC_URL } from '@/config/env';
 
-/**
- * Parses contract errors and returns a user-friendly message
- */
 export const parseContractError = (error: unknown): string => {
     if (error instanceof ContractFunctionRevertedError) {
         return error.reason || error.errorName || 'Transaction reverted';
@@ -24,7 +19,6 @@ export const parseContractError = (error: unknown): string => {
     return 'Unknown error occurred';
 };
 
-// Get RPC URL based on chain
 const getRpcUrl = (chainId: number) => {
     if (chainId === 84532) return 'https://sepolia.base.org';
     if (chainId === 80002) return POLYGON_AMOY_RPC_URL;
@@ -32,7 +26,6 @@ const getRpcUrl = (chainId: number) => {
     return 'https://mainnet.base.org';
 };
 
-// Get chain based on chain ID
 const getChain = (chainId: number) => {
     if (chainId === 84532) return baseSepolia;
     if (chainId === 80002) return polygonAmoy;
@@ -40,33 +33,6 @@ const getChain = (chainId: number) => {
     return base;
 };
 
-/**
- * Crea el wallet client con la clave vía sesión API (cookie + /auth/wallet-token).
- */
-export const createUserWalletClient = async (chainId: number = DEFAULT_CHAIN_ID) => {
-    const { walletId, token } = await fetchWalletCredentials();
-    const privateKey = await getPrivateKey(walletId, token);
-
-    if (!privateKey.startsWith('0x')) {
-        throw new Error('Invalid private key format');
-    }
-
-
-    const account = privateKeyToAccount(privateKey as `0x${string}`);
-    const chain = getChain(chainId);
-
-    const walletClient = createWalletClient({
-        account,
-        chain,
-        transport: http(getRpcUrl(chainId)),
-    });
-
-    return walletClient;
-};
-
-/**
- * Creates a public client for reading blockchain data
- */
 export const createUserPublicClient = (chainId: number = DEFAULT_CHAIN_ID) => {
     const chain = getChain(chainId);
 
@@ -76,9 +42,29 @@ export const createUserPublicClient = (chainId: number = DEFAULT_CHAIN_ID) => {
     });
 };
 
-/**
- * Executes a contract write transaction
- */
+async function executeSessionWalletWrite<TAbi extends Abi>(params: {
+    contractAddress: `0x${string}`;
+    abi: TAbi;
+    functionName: string;
+    args: unknown[];
+}): Promise<{ hash: Hash; receipt: TransactionReceipt }> {
+    if (typeof window === 'undefined') {
+        throw new Error('Session wallet writes must run in the browser');
+    }
+
+    const { submitEncodedCall } = await import('@/modules/nyx-wallet');
+    const data = encodeFunctionData({
+        abi: params.abi,
+        functionName: params.functionName as never,
+        args: params.args as never,
+    });
+
+    return submitEncodedCall({
+        to: params.contractAddress,
+        data,
+    });
+}
+
 export const executeContractWrite = async <TAbi extends Abi>(params: {
     contractAddress: `0x${string}`;
     abi: TAbi;
@@ -87,24 +73,10 @@ export const executeContractWrite = async <TAbi extends Abi>(params: {
     chainId?: number;
     gasLimit?: bigint;
 }) => {
-    const { contractAddress, abi, functionName, args, chainId = DEFAULT_CHAIN_ID, gasLimit } = params;
-
-    const walletClient = await createUserWalletClient(chainId);
-
-    const hash = await walletClient.writeContract({
-        address: contractAddress,
-        abi,
-        functionName,
-        args,
-        gas: gasLimit,
-    });
-
+    const { hash } = await executeSessionWalletWrite(params);
     return hash;
 };
 
-/**
- * Waits for a transaction to be confirmed and returns the receipt
- */
 export const waitForTransaction = async (params: {
     hash: Hash;
     chainId?: number;
@@ -114,17 +86,12 @@ export const waitForTransaction = async (params: {
 
     const publicClient = createUserPublicClient(chainId);
 
-    const receipt = await publicClient.waitForTransactionReceipt({
+    return publicClient.waitForTransactionReceipt({
         hash,
         confirmations,
     });
-
-    return receipt;
 };
 
-/**
- * Executes a contract write and waits for confirmation
- */
 export const executeAndWaitForTransaction = async <TAbi extends Abi>(params: {
     contractAddress: `0x${string}`;
     abi: TAbi;
@@ -137,29 +104,24 @@ export const executeAndWaitForTransaction = async <TAbi extends Abi>(params: {
 }) => {
     const { confirmations = 1, privateKey, ...writeParams } = params;
 
-    let hash: Hash;
     if (privateKey) {
-        hash = await executeContractWriteWithKey({ ...writeParams, privateKey });
-    } else {
-        hash = await executeContractWrite(writeParams);
+        const hash = await executeContractWriteWithKey({ ...writeParams, privateKey });
+        const receipt = await waitForTransaction({
+            hash,
+            chainId: params.chainId,
+            confirmations,
+        });
+
+        if (receipt.status === 'reverted') {
+            throw new Error('Transaction reverted');
+        }
+
+        return { hash, receipt };
     }
 
-    const receipt = await waitForTransaction({
-        hash,
-        chainId: params.chainId,
-        confirmations,
-    });
-
-    if (receipt.status === 'reverted') {
-        throw new Error('Transaction reverted');
-    }
-
-    return { hash, receipt };
+    return executeSessionWalletWrite(writeParams);
 };
 
-/**
- * Creates a wallet client using a custom private key (for admin operations)
- */
 export const createWalletClientWithKey = (privateKey: `0x${string}`, chainId: number = DEFAULT_CHAIN_ID) => {
     const account = privateKeyToAccount(privateKey);
     const chain = getChain(chainId);
@@ -171,9 +133,6 @@ export const createWalletClientWithKey = (privateKey: `0x${string}`, chainId: nu
     });
 };
 
-/**
- * Executes a contract write transaction with a custom private key
- */
 export const executeContractWriteWithKey = async <TAbi extends Abi>(params: {
     privateKey: `0x${string}`;
     contractAddress: `0x${string}`;
@@ -198,9 +157,6 @@ export const executeContractWriteWithKey = async <TAbi extends Abi>(params: {
     return hash;
 };
 
-/**
- * Checks if an address has a specific role on a contract
- */
 export const checkHasRole = async (params: {
     contractAddress: `0x${string}`;
     abi: Abi;

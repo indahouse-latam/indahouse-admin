@@ -1,0 +1,186 @@
+'use client';
+
+import {
+  createDeviceStore,
+  createPasskeyRecoveryKeyProvider,
+  createWallet,
+  openWallet,
+  recoverWalletWithPasskey,
+  type Wallet,
+} from 'nyx_wallet';
+import { ethers } from 'ethers';
+import { POLYGON_AMOY_RPC_URL } from '@/config/env';
+import { fetchApi } from '@/utils/api';
+import { getMemorySession, setMemorySession } from '@/utils/auth-session';
+import { createAppRecoveryVault } from './recovery-vault';
+import { getOrRegisterBiometricCredential } from './biometric-credential';
+import {
+  fetchNyxAccessToken,
+  fetchWalletBootstrap,
+  registerV3Wallet,
+} from './config';
+import type { ActiveNyxWallet, NyxWalletBootstrapConfig } from './types';
+
+let activeWallet: ActiveNyxWallet | null = null;
+
+const ENTRY_POINT_GET_NONCE_ABI = [
+  'function getNonce(address sender, uint192 key) view returns (uint256)',
+] as const;
+
+function assertBrowser(): void {
+  if (typeof window === 'undefined') {
+    throw new Error('Nyx wallet SDK can only run in the browser');
+  }
+}
+
+async function nyxBffFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  return globalThis.fetch(input, {
+    ...init,
+    credentials: 'include',
+  });
+}
+
+function rpcUrlForChain(chainId: number): string {
+  if (chainId === 80002) return POLYGON_AMOY_RPC_URL;
+  return 'https://polygon-rpc.com';
+}
+
+async function whitelistSafeAddress(address: string): Promise<void> {
+  try {
+    await fetchApi('/whitelistWallets', {
+      method: 'POST',
+      body: JSON.stringify({
+        params: { address, status: true },
+      }),
+    });
+  } catch (error) {
+    console.warn('Could not whitelist V3 Safe after register:', error);
+  }
+}
+
+async function buildSdkConfig(bootstrap: NyxWalletBootstrapConfig, userId: string) {
+  const accessToken = bootstrap.accessToken || (await fetchNyxAccessToken());
+  const biometricCredential = await getOrRegisterBiometricCredential({
+    userId,
+    remoteCredential: bootstrap.biometricCredential,
+    accessToken,
+    fetch: nyxBffFetch,
+  });
+
+  return {
+    apiBaseUrl: '/api/nyx',
+    accessToken,
+    deviceStore: createDeviceStore({ userId }),
+    recoveryVault: createAppRecoveryVault(),
+    recoveryKeyProvider: createPasskeyRecoveryKeyProvider(),
+    biometricCredential,
+    biometricRpId: bootstrap.biometricRpId,
+    fetch: nyxBffFetch,
+  };
+}
+
+export async function ensureWallet(): Promise<ActiveNyxWallet> {
+  assertBrowser();
+  if (activeWallet) return activeWallet;
+
+  const session = getMemorySession();
+  if (!session?.id) throw new Error('User session required to open wallet');
+
+  const bootstrap = await fetchWalletBootstrap();
+  const sdkConfig = await buildSdkConfig(bootstrap, session.id);
+
+  let wallet: Wallet;
+  let walletId = bootstrap.walletId;
+
+  if (walletId) {
+    try {
+      wallet = await openWallet(sdkConfig, walletId, {
+        deployment: bootstrap.deployment,
+      });
+    } catch {
+      const recovered = await recoverWalletWithPasskey(
+        {
+          apiBaseUrl: sdkConfig.apiBaseUrl,
+          accessToken: sdkConfig.accessToken,
+          keyProvider: sdkConfig.recoveryKeyProvider,
+          deployment: bootstrap.deployment,
+          fetch: sdkConfig.fetch,
+        },
+        walletId,
+      );
+      if (recovered.status === 'needs-guardians') {
+        throw new Error(`Wallet recovery requires guardians: ${recovered.detail}`);
+      }
+      await sdkConfig.deviceStore.write(walletId, recovered.material.device);
+      wallet = await openWallet(sdkConfig, walletId, {
+        deployment: bootstrap.deployment,
+      });
+    }
+  } else {
+    const walletName = session.email || 'Indahouse Admin Wallet';
+    wallet = await createWallet(sdkConfig, {
+      name: walletName,
+      blockchain: 'polygon',
+      network: bootstrap.network,
+      deployment: bootstrap.deployment,
+    });
+    walletId = wallet.walletId;
+    await registerV3Wallet({
+      walletId: wallet.walletId,
+      address: wallet.address,
+      walletName,
+    });
+    await whitelistSafeAddress(wallet.address);
+    setMemorySession({
+      ...session,
+      walletId: wallet.walletId,
+      walletAddress: wallet.address,
+    });
+  }
+
+  activeWallet = {
+    wallet,
+    walletId: walletId!,
+    address: wallet.address,
+  };
+  return activeWallet;
+}
+
+export async function getSessionWalletAddress(): Promise<`0x${string}`> {
+  const { address } = await ensureWallet();
+  return address as `0x${string}`;
+}
+
+export function closeWallet(): void {
+  if (activeWallet) {
+    try {
+      activeWallet.wallet.close();
+    } catch {
+      // ignore
+    }
+  }
+  activeWallet = null;
+}
+
+export function getActiveWallet(): ActiveNyxWallet | null {
+  return activeWallet;
+}
+
+export async function getAccountNonce(accountAddress?: string): Promise<string> {
+  const bootstrap = await fetchWalletBootstrap();
+  const address = accountAddress || activeWallet?.address || bootstrap.address;
+  if (!address) throw new Error('No wallet address available for nonce lookup');
+
+  const provider = new ethers.JsonRpcProvider(rpcUrlForChain(bootstrap.chainId));
+  const entryPoint = new ethers.Contract(
+    bootstrap.deployment.entryPoint,
+    ENTRY_POINT_GET_NONCE_ABI,
+    provider,
+  );
+  const nonce: bigint = await entryPoint.getNonce(address, 0);
+  return nonce.toString();
+}
+
+export async function getBootstrapConfig(): Promise<NyxWalletBootstrapConfig> {
+  return fetchWalletBootstrap();
+}

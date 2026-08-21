@@ -38,9 +38,7 @@ function LoginForm() {
 
     const handleGoogleLogin = () => {
         setIsGoogleLoading(true);
-        const walletUrl = process.env.NEXT_PUBLIC_WALLET_URL;
-        const apiKey = process.env.NEXT_PUBLIC_WALLET_API_KEY;
-        const googleAuthUrl = `${walletUrl}/api/auth/google?apiKey=${apiKey}&source=indahouse-admin`;
+        const googleAuthUrl = `/api/nyxwallet/google`;
         window.location.href = googleAuthUrl;
     };
 
