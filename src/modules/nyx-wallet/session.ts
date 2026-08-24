@@ -13,7 +13,10 @@ import { POLYGON_AMOY_RPC_URL } from '@/config/env';
 import { fetchApi } from '@/utils/api';
 import { getMemorySession, setMemorySession } from '@/utils/auth-session';
 import { createAppRecoveryVault } from './recovery-vault';
-import { getOrRegisterBiometricCredential } from './biometric-credential';
+import {
+  describeWebAuthnOriginError,
+  getOrRegisterBiometricCredential,
+} from './biometric-credential';
 import {
   fetchNyxAccessToken,
   fetchWalletBootstrap,
@@ -87,66 +90,84 @@ export async function ensureWallet(): Promise<ActiveNyxWallet> {
   if (!session?.id) throw new Error('User session required to open wallet');
 
   const bootstrap = await fetchWalletBootstrap();
-  const sdkConfig = await buildSdkConfig(bootstrap, session.id);
 
-  let wallet: Wallet;
-  let walletId = bootstrap.walletId;
+  try {
+    const sdkConfig = await buildSdkConfig(bootstrap, session.id);
 
-  if (walletId) {
-    try {
-      wallet = await openWallet(sdkConfig, walletId, {
+    let wallet: Wallet;
+    let walletId = bootstrap.walletId;
+
+    if (walletId) {
+      try {
+        wallet = await openWallet(sdkConfig, walletId, {
+          deployment: bootstrap.deployment,
+        });
+      } catch {
+        const recovered = await recoverWalletWithPasskey(
+          {
+            apiBaseUrl: sdkConfig.apiBaseUrl,
+            accessToken: sdkConfig.accessToken,
+            keyProvider: sdkConfig.recoveryKeyProvider,
+            deployment: bootstrap.deployment,
+            fetch: sdkConfig.fetch,
+          },
+          walletId,
+        );
+        if (recovered.status === 'needs-guardians') {
+          throw new Error(`Wallet recovery requires guardians: ${recovered.detail}`);
+        }
+        await sdkConfig.deviceStore.write(walletId, recovered.material.device);
+        wallet = await openWallet(sdkConfig, walletId, {
+          deployment: bootstrap.deployment,
+        });
+      }
+    } else {
+      const walletName = session.email || 'Indahouse Admin Wallet';
+      wallet = await createWallet(sdkConfig, {
+        name: walletName,
+        blockchain: 'polygon',
+        network: bootstrap.network,
         deployment: bootstrap.deployment,
       });
-    } catch {
-      const recovered = await recoverWalletWithPasskey(
-        {
-          apiBaseUrl: sdkConfig.apiBaseUrl,
-          accessToken: sdkConfig.accessToken,
-          keyProvider: sdkConfig.recoveryKeyProvider,
-          deployment: bootstrap.deployment,
-          fetch: sdkConfig.fetch,
-        },
-        walletId,
-      );
-      if (recovered.status === 'needs-guardians') {
-        throw new Error(`Wallet recovery requires guardians: ${recovered.detail}`);
-      }
-      await sdkConfig.deviceStore.write(walletId, recovered.material.device);
-      wallet = await openWallet(sdkConfig, walletId, {
-        deployment: bootstrap.deployment,
+      walletId = wallet.walletId;
+      await registerV3Wallet({
+        walletId: wallet.walletId,
+        address: wallet.address,
+        walletName,
+      });
+      await whitelistSafeAddress(wallet.address);
+      setMemorySession({
+        ...session,
+        walletId: wallet.walletId,
+        walletAddress: wallet.address,
       });
     }
-  } else {
-    const walletName = session.email || 'Indahouse Admin Wallet';
-    wallet = await createWallet(sdkConfig, {
-      name: walletName,
-      blockchain: 'polygon',
-      network: bootstrap.network,
-      deployment: bootstrap.deployment,
-    });
-    walletId = wallet.walletId;
-    await registerV3Wallet({
-      walletId: wallet.walletId,
-      address: wallet.address,
-      walletName,
-    });
-    await whitelistSafeAddress(wallet.address);
-    setMemorySession({
-      ...session,
-      walletId: wallet.walletId,
-      walletAddress: wallet.address,
-    });
-  }
 
-  activeWallet = {
-    wallet,
-    walletId: walletId!,
-    address: wallet.address,
-  };
-  return activeWallet;
+    activeWallet = {
+      wallet,
+      walletId: walletId!,
+      address: wallet.address,
+    };
+    return activeWallet;
+  } catch (error) {
+    if (error instanceof DOMException) {
+      throw new Error(describeWebAuthnOriginError(bootstrap.biometricRpId));
+    }
+    throw error;
+  }
+}
+
+/** Address already known from session/Safe. Does not open the SDK or prompt WebAuthn. */
+export function peekSessionWalletAddress(): `0x${string}` | null {
+  if (activeWallet?.address) return activeWallet.address as `0x${string}`;
+  const session = getMemorySession();
+  if (session?.walletAddress) return session.walletAddress as `0x${string}`;
+  return null;
 }
 
 export async function getSessionWalletAddress(): Promise<`0x${string}`> {
+  const known = peekSessionWalletAddress();
+  if (known) return known;
   const { address } = await ensureWallet();
   return address as `0x${string}`;
 }

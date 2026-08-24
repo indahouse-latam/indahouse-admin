@@ -86,6 +86,45 @@ function toByteArray(value: ArrayBuffer): number[] {
   return Array.from(new Uint8Array(value));
 }
 
+export function isWebAuthnRpCompatible(rpId?: string): boolean {
+  if (typeof window === 'undefined') return false;
+  if (!window.isSecureContext) return false;
+  if (!rpId) return true;
+  const host = window.location.hostname;
+  return host === rpId || host.endsWith(`.${rpId}`);
+}
+
+export function describeWebAuthnOriginError(rpId?: string): string {
+  const host = typeof window !== 'undefined' ? window.location.hostname : 'este origin';
+  if (typeof window !== 'undefined' && !window.isSecureContext) {
+    return 'Passkey requiere HTTPS o http://localhost.';
+  }
+  return (
+    `El browser no puede mostrar el passkey en ${host}. Nyx lo registró para "${rpId || 'otro dominio'}". ` +
+    `Abrí el admin en https://admin-qa.indahouse.com.co (mismo RP que la PWA) o usá la master key solo en local.`
+  );
+}
+
+function assertRpMatchesDocumentOrigin(rpId?: string): void {
+  if (!isWebAuthnRpCompatible(rpId)) {
+    throw new Error(describeWebAuthnOriginError(rpId));
+  }
+}
+
+function toWebAuthnUserError(error: unknown, rpId?: string): Error {
+  if (error instanceof DOMException) {
+    if (error.name === 'InvalidStateError') {
+      return new Error(
+        'This device already has a passkey registered with Nyx, but it is missing locally. Clear site data for this origin and register again.',
+      );
+    }
+    if (error.name === 'SecurityError' || error.name === 'NotAllowedError') {
+      return new Error(describeWebAuthnOriginError(rpId));
+    }
+  }
+  return error instanceof Error ? error : new Error(String(error));
+}
+
 function toPublicKeyCreationOptions(
   options: NyxRegistrationOptions,
 ): PublicKeyCredentialCreationOptions {
@@ -164,18 +203,15 @@ export async function registerBiometricCredential(params: {
     params.accessToken,
   );
 
+  assertRpMatchesDocumentOrigin(options.rp.id);
+
   let credential: PublicKeyCredential | null;
   try {
     credential = (await navigator.credentials.create({
       publicKey: toPublicKeyCreationOptions(options),
     })) as PublicKeyCredential | null;
   } catch (error) {
-    if (error instanceof DOMException && error.name === 'InvalidStateError') {
-      throw new Error(
-        'This device already has a passkey registered with Nyx, but it is missing locally. Clear site data for this origin and register again.',
-      );
-    }
-    throw error;
+    throw toWebAuthnUserError(error, options.rp.id);
   }
 
   if (!credential) throw new Error('WebAuthn registration was cancelled');

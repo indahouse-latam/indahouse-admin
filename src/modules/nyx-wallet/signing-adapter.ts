@@ -2,6 +2,7 @@
 
 import { getUserOperationReceipt } from 'nyx_wallet';
 import type { Hash, TransactionReceipt } from 'viem';
+import { describeWebAuthnOriginError } from './biometric-credential';
 import { ensureWallet, getAccountNonce, getBootstrapConfig } from './session';
 
 export interface WalletCallTransaction {
@@ -72,12 +73,21 @@ export async function submitEncodedCall(
   const { wallet } = await ensureWallet();
   const nonce = await getAccountNonce(wallet.address);
 
-  const result = await wallet.sendFunds({
-    to: transaction.to,
-    data: transaction.data || '0x',
-    value: transaction.value != null ? String(transaction.value) : '0',
-    nonce,
-  });
+  let result: { userOpHash: string };
+  try {
+    result = await wallet.sendFunds({
+      to: transaction.to,
+      data: transaction.data || '0x',
+      value: transaction.value != null ? String(transaction.value) : '0',
+      nonce,
+    });
+  } catch (error) {
+    if (error instanceof DOMException) {
+      const bootstrap = await getBootstrapConfig();
+      throw new Error(describeWebAuthnOriginError(bootstrap.biometricRpId));
+    }
+    throw error;
+  }
 
   const userOpReceipt = await waitForUserOperation(result.userOpHash);
   const receipt = asTransactionReceipt(userOpReceipt, result.userOpHash);
