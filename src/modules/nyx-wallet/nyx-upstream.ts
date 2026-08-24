@@ -6,7 +6,7 @@ export function getNyxV3Upstream(): { baseUrl: string; apiKey: string } {
   const baseUrl = (
     process.env.NYX_API_BASE ||
     process.env.NEXT_PUBLIC_NYX_V3_API_BASE_URL ||
-    'https://nyx-wallet-v3.vercel.app/api'
+    'https://nyx-wallet-api-v3.ledgit.tech/api'
   ).replace(/\/+$/, '');
 
   const apiKey = process.env.NYX_V3_CLIENT_API_KEY || '';
