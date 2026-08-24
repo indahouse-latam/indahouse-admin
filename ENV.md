@@ -21,9 +21,29 @@ Todo proveedor privado configurado en una variable `NEXT_PUBLIC_*` queda visible
 
 ## Vercel
 
-1. **Production** (deploys desde `main`): en Environment Variables, asignar a **Production** y definir `NEXT_PUBLIC_APP_ENV=production`, `NEXT_PUBLIC_POLYGON_AMOY_RPC_URL` y las variables de API, Wallet, Google Maps, etc.
-2. **Preview** (deploys desde `develop` u otras ramas): asignar a **Preview** y definir `NEXT_PUBLIC_APP_ENV=qa` (o dejarlo sin definir), `NEXT_PUBLIC_POLYGON_AMOY_RPC_URL` y las URLs/keys de QA.
-3. **Development**: definir `NEXT_PUBLIC_POLYGON_AMOY_RPC_URL` en `.env.local` junto con las demás variables locales.
+1. **Production** (deploys desde `main`): en Environment Variables, asignar a **Production** y definir `NEXT_PUBLIC_APP_ENV=production`, `NEXT_PUBLIC_POLYGON_AMOY_RPC_URL`, `NYX_API_BASE`, `NYX_V3_CLIENT_API_KEY` y las variables de API / Google Maps.
+2. **Preview** (deploys desde `develop` u otras ramas): asignar a **Preview** y definir `NEXT_PUBLIC_APP_ENV=qa` (o dejarlo sin definir), `NEXT_PUBLIC_POLYGON_AMOY_RPC_URL`, `NYX_API_BASE`, `NYX_V3_CLIENT_API_KEY` y las URLs de QA.
+3. **Development**: definir `NEXT_PUBLIC_POLYGON_AMOY_RPC_URL` y `NYX_*` en `.env.local` junto con las demás variables locales.
+
+## Nyx Wallet V3
+
+El admin ya no usa Ledgit V2 (`NEXT_PUBLIC_WALLET_URL` / private-key proxy). Login Google y custody van contra Nyx V3 vía `/api/nyx` (same-origin).
+
+`NYX_V3_CLIENT_API_KEY` es **solo servidor**. WebAuthn exige que Nyx tenga `WEBAUTHN_ORIGIN` (y CORS) igual a `NEXT_PUBLIC_APP_URL`. Si la PWA usa `app-qa.indahouse.com.co` y el admin otro host, hay que:
+
+- añadir el origin del admin en Nyx, o
+- bajar `WEBAUTHN_RP_ID` a `indahouse.com.co` para ambas apps.
+
+Google OAuth V3 también necesita el callback/redirect del admin en la allowlist de Nyx.
+
+## Tras el primer alta V3 (operativo)
+
+La Safe es una address **nueva**. `msg.sender` ya no es la EOA Ledgit.
+
+1. Confirmar `GET /auth/wallet/bootstrap` → `needsWalletBootstrap: false` y `address` = Safe.
+2. El alta llama `POST /whitelistWallets` (no GET) con esa address.
+3. Volver a otorgar roles on-chain (`CERTIFICATE_MANAGER`, owners de campaña, etc.) a la Safe, no a la EOA V2.
+4. CountryManagers / create-for-country siguen usando la **master PK** pegada; no cambian.
 
 ## Contratos
 

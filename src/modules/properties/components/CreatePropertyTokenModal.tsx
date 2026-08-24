@@ -10,7 +10,27 @@ import { TokenFactoryAbi, ManagerAbi, PropertyRegistryAbi, IndahouseRegistryAbi 
 import { PoolFactoryAbi } from '@/config/abis/pool-factory.abi';
 import { currentContracts, DEFAULT_CHAIN_ID } from '@/config/contracts';
 import { toast } from 'sonner';
-import { createUserPublicClient, createUserWalletClient, executeAndWaitForTransaction, checkHasRole, parseContractError } from '@/utils/blockchain.utils';
+import { privateKeyToAccount } from 'viem/accounts';
+import { createUserPublicClient, executeAndWaitForTransaction, checkHasRole, parseContractError } from '@/utils/blockchain.utils';
+import { peekSessionWalletAddress } from '@/modules/nyx-wallet';
+import { useAuth } from '@/providers/AuthProvider';
+
+function formatPrivateKey(value: string): `0x${string}` {
+    return (value.startsWith('0x') ? value : `0x${value}`) as `0x${string}`;
+}
+
+function addressFromPrivateKey(value: string): `0x${string}` {
+    return privateKeyToAccount(formatPrivateKey(value.trim())).address;
+}
+
+function resolveAdminAddress(privateKey?: string, sessionAddress?: string | null): `0x${string}` {
+    if (privateKey?.trim()) return addressFromPrivateKey(privateKey);
+    const known = peekSessionWalletAddress() || (sessionAddress as `0x${string}` | undefined) || null;
+    if (known) return known;
+    throw new Error(
+        'No session wallet address. Complete V3 wallet bootstrap, or provide the master private key to sign without WebAuthn.'
+    );
+}
 
 interface CreatePropertyTokenModalProps {
     isOpen: boolean;
@@ -31,6 +51,7 @@ function countryCodeToBytes32(code: string): `0x${string}` {
 export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyTokenModalProps) {
     const { data: marketsData } = useMarkets();
     const { data: countries } = useCountries();
+    const { user } = useAuth();
     const properties = marketsData?.properties || [];
     const { createPropertyToken } = usePropertyTokens();
 
@@ -68,7 +89,7 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
         }
 
         checkManagerStatus(selectedCountry.code);
-    }, [formData.country_id, countries]);
+    }, [formData.country_id, countries, privateKey, user?.walletAddress]);
 
     const checkManagerStatus = async (countryCode: string) => {
         try {
@@ -91,8 +112,24 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
                 return;
             }
 
-            const walletClient = await createUserWalletClient(DEFAULT_CHAIN_ID);
-            const adminAddress = walletClient.account.address;
+            let adminAddress: `0x${string}` | null = null;
+            try {
+                adminAddress = privateKey.trim()
+                    ? addressFromPrivateKey(privateKey)
+                    : peekSessionWalletAddress() || (user?.walletAddress as `0x${string}` | undefined) || null;
+            } catch {
+                adminAddress = null;
+            }
+
+            if (!adminAddress) {
+                setManagerStatus({
+                    exists: true,
+                    address: managerAddress,
+                    hasRole: false,
+                    needsSetup: true,
+                });
+                return;
+            }
 
             const hasRole = await publicClient.readContract({
                 address: managerAddress,
@@ -129,18 +166,18 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
 
         setLoadingStep('creating_manager');
 
-        const formattedKey = privateKey.startsWith('0x') ? privateKey as `0x${string}` : `0x${privateKey}` as `0x${string}`;
+        const formattedKey = formatPrivateKey(privateKey);
         const registryAddress = currentContracts.indahouseRegistry as `0x${string}`;
         const countryCodeBytes32 = countryCodeToBytes32(selectedCountry.code);
         const publicClient = createUserPublicClient(DEFAULT_CHAIN_ID);
-        const walletClient = await createUserWalletClient(DEFAULT_CHAIN_ID);
-        const adminAddress = walletClient.account.address;
+        const signerAddress = addressFromPrivateKey(formattedKey);
+        const sessionAddress = peekSessionWalletAddress() || (user?.walletAddress as `0x${string}` | undefined) || null;
 
         const hasAdminRole = await checkHasRole({
             contractAddress: registryAddress,
             abi: IndahouseRegistryAbi,
             role: '0x0000000000000000000000000000000000000000000000000000000000000000',
-            account: adminAddress,
+            account: signerAddress,
             chainId: DEFAULT_CHAIN_ID,
         });
         if (!hasAdminRole) {
@@ -157,19 +194,12 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
         }) as `0x${string}`;
 
         if (existingManager && existingManager !== zeroAddress) {
-            if (!privateKey) {
-                throw new Error('Private key required to grant certificate manager role');
-            }
-
-            await executeAndWaitForTransaction({
-                contractAddress: existingManager,
-                abi: ManagerAbi,
-                functionName: 'grantRole',
-                args: [CERTIFICATE_MANAGER_ROLE, adminAddress],
-                chainId: DEFAULT_CHAIN_ID,
-                privateKey: formattedKey,
+            await grantCertificateRole({
+                managerAddress: existingManager,
+                signerAddress,
+                sessionAddress,
+                formattedKey,
             });
-
             return existingManager;
         }
 
@@ -189,16 +219,37 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
             args: [countryCodeBytes32],
         }) as `0x${string}`;
 
-        await executeAndWaitForTransaction({
-            contractAddress: newManager,
-            abi: ManagerAbi,
-            functionName: 'grantRole',
-            args: [CERTIFICATE_MANAGER_ROLE, adminAddress],
-            chainId: DEFAULT_CHAIN_ID,
-            privateKey: formattedKey,
+        await grantCertificateRole({
+            managerAddress: newManager,
+            signerAddress,
+            sessionAddress,
+            formattedKey,
         });
 
         return newManager;
+    };
+
+    const grantCertificateRole = async (params: {
+        managerAddress: `0x${string}`;
+        signerAddress: `0x${string}`;
+        sessionAddress: `0x${string}` | null;
+        formattedKey: `0x${string}`;
+    }) => {
+        const recipients = [params.signerAddress];
+        if (params.sessionAddress && params.sessionAddress.toLowerCase() !== params.signerAddress.toLowerCase()) {
+            recipients.push(params.sessionAddress);
+        }
+
+        for (const account of recipients) {
+            await executeAndWaitForTransaction({
+                contractAddress: params.managerAddress,
+                abi: ManagerAbi,
+                functionName: 'grantRole',
+                args: [CERTIFICATE_MANAGER_ROLE, account],
+                chainId: DEFAULT_CHAIN_ID,
+                privateKey: params.formattedKey,
+            });
+        }
     };
 
     if (!isOpen) return null;
@@ -236,8 +287,9 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
             setLoadingStep('certificate');
             console.log('📋 Verifying manager certificate for country:', countryCodeForBlockchain, '(DB:', selectedCountryCode, ')');
             const publicClient = createUserPublicClient(chainId);
-            const walletClient = await createUserWalletClient(chainId);
-            const adminAddress = walletClient.account.address;
+            const formattedKey = privateKey.trim() ? formatPrivateKey(privateKey) : undefined;
+            const adminAddress = resolveAdminAddress(formattedKey, user?.walletAddress);
+            const writeKey = formattedKey ? { privateKey: formattedKey } : {};
             const distributorReadAbi = parseAbi([
                 'function shareToken() view returns (address)',
                 'function rewardToken() view returns (address)',
@@ -325,6 +377,7 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
                     functionName: 'createDistributorProxy',
                     args: [countryCodeBytes32, adminAddress],
                     chainId,
+                    ...writeKey,
                 });
 
                 // Use the created proxy returned by simulation for the same tx params/state
@@ -346,6 +399,7 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
                     functionName: 'createCertificate',
                     args: [adminAddress],
                     chainId,
+                    ...writeKey,
                 });
                 console.log('✅ Manager certificate created for country:', selectedCountry.code);
             } else {
@@ -368,6 +422,7 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
                     networkConfig.baseToken as `0x${string}`,
                 ],
                 chainId,
+                ...writeKey,
             });
 
             console.log('✅ Transaction confirmed:', hash);
@@ -437,6 +492,7 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
                         `Distributor-${tokenAddress.slice(0, 10)}`,
                     ],
                     chainId,
+                    ...writeKey,
                 });
                 console.log('✅ Distributor initialized');
             } else if (shareToken.toLowerCase() !== tokenAddress.toLowerCase()) {
@@ -459,6 +515,7 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
                     formData.symbol,
                 ],
                 chainId,
+                ...writeKey,
             });
 
             console.log('✅ Token registered in Manager:', managerHash);
@@ -480,6 +537,7 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
                     BigInt(saleStartTimestamp),
                 ],
                 chainId,
+                ...writeKey,
             });
 
             console.log('✅ Property registered in registry:', registryHash);
@@ -723,26 +781,25 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
                         </div>
                     </div>
 
-                    {/* Master Private Key (only shown when manager needs setup) */}
-                    {managerStatus?.needsSetup && (
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium flex items-center gap-2">
-                                <Settings className="w-4 h-4" />
-                                Master Private Key *
-                            </label>
-                            <input
-                                type="password"
-                                value={privateKey}
-                                onChange={(e) => setPrivateKey(e.target.value)}
-                                disabled={isLoading}
-                                placeholder="0x..."
-                                className="w-full bg-secondary border border-border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
-                            />
-                            <p className="text-xs text-muted-foreground">
-                                Required to create manager and grant permissions for {managerStatus.exists ? 'this country' : 'new country'}.
-                            </p>
-                        </div>
-                    )}
+                    <div className="space-y-2">
+                        <label className="text-sm font-medium flex items-center gap-2">
+                            <Settings className="w-4 h-4" />
+                            Master Private Key {managerStatus?.needsSetup ? '*' : '(opcional)'}
+                        </label>
+                        <input
+                            type="password"
+                            value={privateKey}
+                            onChange={(e) => setPrivateKey(e.target.value)}
+                            disabled={isLoading}
+                            placeholder="0x..."
+                            className="w-full bg-secondary border border-border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                            {managerStatus?.needsSetup
+                                ? 'Solo para crear el manager o grant CERT. El token se firma con passkey de la Safe, salvo que estés en localhost.'
+                                : 'No la uses en QA/prod: ahí el passkey de la wallet de sesión firma el token. En localhost Nyx no puede pedir passkey (RP distinto).'}
+                        </p>
+                    </div>
 
                     {/* Footer */}
                     <div className="flex gap-3 pt-4 border-t border-border">

@@ -16,6 +16,7 @@ import {
   logoutSessionApi,
   meResponseToMemory,
   setMemorySession,
+  type MemorySession,
 } from "@/utils/auth-session";
 
 export type AdminUser = {
@@ -49,6 +50,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const searchParams = useSearchParams();
   const verificationAttempted = useRef(false);
 
+  const applyUser = (mem: MemorySession) => {
+    setMemorySession(mem);
+    setUser({
+      email: mem.email,
+      id: mem.id,
+      walletId: mem.walletId,
+      walletAddress: mem.walletAddress,
+    });
+  };
+
+  const bootstrapWalletIfNeeded = async (
+    mem: MemorySession,
+    needsWalletBootstrap?: boolean,
+  ): Promise<MemorySession> => {
+    if (!needsWalletBootstrap && mem.walletId && mem.walletAddress) return mem;
+
+    const { ensureWallet } = await import("@/modules/nyx-wallet");
+    const active = await ensureWallet();
+    const next: MemorySession = {
+      ...mem,
+      walletId: active.walletId,
+      walletAddress: active.address,
+    };
+    setMemorySession(next);
+    return next;
+  };
+
   const applySessionFromMe = useCallback(() => {
     return fetchAuthMe().then((res) => {
       if (!res.ok) {
@@ -57,13 +85,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return false;
       }
       const mem = meResponseToMemory(res.data);
-      setMemorySession(mem);
-      setUser({
-        email: mem.email,
-        id: mem.id,
-        walletId: mem.walletId,
-        walletAddress: mem.walletAddress,
-      });
+      applyUser(mem);
       return true;
     });
   }, []);
@@ -95,20 +117,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (result.code === "USER-200" && result.user) {
-        const mem = meResponseToMemory(
+        let mem = meResponseToMemory(
           {
             user: result.user,
             wallet: result.wallet ?? null,
           },
           sessionToken,
         );
-        setMemorySession(mem);
-        setUser({
-          email: mem.email,
-          id: mem.id,
-          walletId: mem.walletId,
-          walletAddress: mem.walletAddress,
-        });
+        applyUser(mem);
+        mem = await bootstrapWalletIfNeeded(mem, result.needsWalletBootstrap);
+        applyUser(mem);
       } else {
         throw new Error(result.message || "Error en la respuesta del servidor");
       }
@@ -169,6 +187,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = async () => {
+    try {
+      const { closeWallet } = await import("@/modules/nyx-wallet");
+      closeWallet();
+    } catch {
+      // ignore
+    }
     await logoutSessionApi();
     setMemorySession(null);
     setUser(null);
