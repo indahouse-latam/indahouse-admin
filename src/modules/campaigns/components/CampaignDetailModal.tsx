@@ -1,16 +1,14 @@
 'use client';
 
-import { X, Building2, DollarSign, Calendar, Hash, TrendingUp, Clock, Loader2 } from 'lucide-react';
+import { X, Building2, DollarSign, Calendar, Hash, TrendingUp, Clock, Loader2, Settings } from 'lucide-react';
 import { Campaign } from '../hooks/useCampaigns';
 import { CommitCampaignAbi } from '@/config/abis/commit-campaing.abi';
 import { IndaAdminRouterAbi } from '@/config/abis/inda-admin-router.abi';
 import { IndaRootAbi, ManagerAbi } from '@/config/abis';
 import { currentContracts, DEFAULT_CHAIN_ID } from '@/config/contracts';
 import {
-    executeContractWrite,
     executeAndWaitForTransaction,
     createUserPublicClient,
-    waitForTransaction,
     parseContractError,
 } from '@/utils/blockchain.utils';
 import { fetchApi } from '@/utils/api';
@@ -77,6 +75,10 @@ function bytes32ToCountryCode(value: `0x${string}` | null): string {
     return out || value.slice(0, 10) + '...';
 }
 
+function formatPrivateKey(value: string): `0x${string}` {
+    return (value.startsWith('0x') ? value : `0x${value}`) as `0x${string}`;
+}
+
 export function CampaignDetailModal({ campaign, isOpen, onClose }: CampaignDetailModalProps) {
     const queryClient = useQueryClient();
     const [finState, setFinState] = useState<FinalizationState>({
@@ -99,6 +101,7 @@ export function CampaignDetailModal({ campaign, isOpen, onClose }: CampaignDetai
         preflightIssues: []
     });
     const [isFixingPreflight, setIsFixingPreflight] = useState(false);
+    const [privateKey, setPrivateKey] = useState('');
 
     console.log('Campaign data:', campaign);
 
@@ -420,7 +423,18 @@ export function CampaignDetailModal({ campaign, isOpen, onClose }: CampaignDetai
         }
     };
 
+    const requireMasterKey = (): `0x${string}` | null => {
+        if (!privateKey.trim()) {
+            toast.error('Pega la master private key. El passkey de Nyx no está disponible entre app-qa y admin-qa.');
+            return null;
+        }
+        return formatPrivateKey(privateKey.trim());
+    };
+
     const fixWhitelistMissing = async () => {
+        const key = requireMasterKey();
+        if (!key) return;
+
         const addresses = finState.preflightIssues
             .filter((i) => i.fix === 'whitelist' && i.address)
             .map((i) => i.address!);
@@ -439,6 +453,7 @@ export function CampaignDetailModal({ campaign, isOpen, onClose }: CampaignDetai
                 functionName: '_setToWhitelist',
                 args: [unique, unique.map(() => true)],
                 chainId: DEFAULT_CHAIN_ID,
+                privateKey: key,
             });
             toast.success('Whitelist actualizada');
             await checkPrerequisites();
@@ -450,6 +465,9 @@ export function CampaignDetailModal({ campaign, isOpen, onClose }: CampaignDetai
     };
 
     const fixRegisterCampaign = async () => {
+        const key = requireMasterKey();
+        if (!key) return;
+
         if (!finState.managerAddress) {
             toast.error('Manager no resuelto');
             return;
@@ -463,6 +481,7 @@ export function CampaignDetailModal({ campaign, isOpen, onClose }: CampaignDetai
                 functionName: 'registerCampaign',
                 args: [campaignAddr as `0x${string}`],
                 chainId: DEFAULT_CHAIN_ID,
+                privateKey: key,
             });
             toast.success('Campaña registrada en Manager');
             await checkPrerequisites();
@@ -474,10 +493,13 @@ export function CampaignDetailModal({ campaign, isOpen, onClose }: CampaignDetai
     };
 
     const handleApproveFunds = async () => {
+        const key = requireMasterKey();
+        if (!key) return;
+
         setFinState(prev => ({ ...prev, step1Status: 'approving', step1Error: null }));
 
         try {
-            const hash = await executeContractWrite({
+            const { hash } = await executeAndWaitForTransaction({
                 contractAddress: campaignAddr as `0x${string}`,
                 abi: CommitCampaignAbi as Abi,
                 functionName: 'approveFunds',
@@ -485,14 +507,11 @@ export function CampaignDetailModal({ campaign, isOpen, onClose }: CampaignDetai
                     currentContracts.IndaAdminRouter as `0x${string}`,
                     finState.totalCommitted!
                 ],
-                chainId: DEFAULT_CHAIN_ID
+                chainId: DEFAULT_CHAIN_ID,
+                privateKey: key,
             });
 
-            setFinState(prev => ({ ...prev, step1Hash: hash }));
-
-            await waitForTransaction({ hash, chainId: DEFAULT_CHAIN_ID });
-
-            setFinState(prev => ({ ...prev, step1Status: 'approved' }));
+            setFinState(prev => ({ ...prev, step1Hash: hash, step1Status: 'approved' }));
         } catch (error: any) {
             console.error('Error approving funds:', error);
             setFinState(prev => ({
@@ -504,6 +523,9 @@ export function CampaignDetailModal({ campaign, isOpen, onClose }: CampaignDetai
     };
 
     const handleExecuteFinalization = async () => {
+        const key = requireMasterKey();
+        if (!key) return;
+
         setFinState(prev => ({ ...prev, step2Status: 'executing', step2Error: null, step2Hashes: [], currentBatch: 0 }));
 
         try {
@@ -527,7 +549,7 @@ export function CampaignDetailModal({ campaign, isOpen, onClose }: CampaignDetai
 
                 console.log(`🔄 Processing batch ${i + 1}/${totalBatches} (start: ${start}, count: ${count})`);
 
-                const hash = await executeContractWrite({
+                const { hash } = await executeAndWaitForTransaction({
                     contractAddress: currentContracts.IndaAdminRouter as `0x${string}`,
                     abi: IndaAdminRouterAbi as Abi,
                     functionName: 'finalizeAndDistributeCampaignBatched',
@@ -540,13 +562,12 @@ export function CampaignDetailModal({ campaign, isOpen, onClose }: CampaignDetai
                         BigInt(start),
                         BigInt(count)
                     ],
-                    chainId: DEFAULT_CHAIN_ID
+                    chainId: DEFAULT_CHAIN_ID,
+                    privateKey: key,
                 });
 
                 hashes.push(hash);
                 setFinState(prev => ({ ...prev, step2Hashes: [...hashes] }));
-
-                await waitForTransaction({ hash, chainId: DEFAULT_CHAIN_ID });
                 console.log(`✅ Batch ${i + 1}/${totalBatches} confirmed: ${hash}`);
             }
 
@@ -937,7 +958,7 @@ export function CampaignDetailModal({ campaign, isOpen, onClose }: CampaignDetai
                                                         <button
                                                             type="button"
                                                             onClick={fixWhitelistMissing}
-                                                            disabled={isFixingPreflight}
+                                                            disabled={isFixingPreflight || !privateKey.trim()}
                                                             className="px-3 py-1.5 text-xs bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg disabled:opacity-50 flex items-center gap-1"
                                                         >
                                                             {isFixingPreflight ? (
@@ -950,7 +971,7 @@ export function CampaignDetailModal({ campaign, isOpen, onClose }: CampaignDetai
                                                         <button
                                                             type="button"
                                                             onClick={fixRegisterCampaign}
-                                                            disabled={isFixingPreflight || !finState.managerAddress}
+                                                            disabled={isFixingPreflight || !finState.managerAddress || !privateKey.trim()}
                                                             className="px-3 py-1.5 text-xs bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg disabled:opacity-50 flex items-center gap-1"
                                                         >
                                                             {isFixingPreflight ? (
@@ -983,6 +1004,23 @@ export function CampaignDetailModal({ campaign, isOpen, onClose }: CampaignDetai
                                 )}
                             </div>
 
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium flex items-center gap-2">
+                                    <Settings className="w-4 h-4" />
+                                    Master Private Key *
+                                </label>
+                                <input
+                                    type="password"
+                                    value={privateKey}
+                                    onChange={(e) => setPrivateKey(e.target.value)}
+                                    placeholder="0x..."
+                                    className="w-full bg-secondary border border-border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary/50 font-mono text-sm"
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                    Necesaria para whitelist, register, approve y finalize. Workaround temporal: el passkey de Nyx de app-qa no se puede usar en admin-qa.
+                                </p>
+                            </div>
+
                             {/* Step 1: Approve Funds */}
                             <StepSection
                                 title="Step 1: Approve Funds Transfer"
@@ -991,7 +1029,7 @@ export function CampaignDetailModal({ campaign, isOpen, onClose }: CampaignDetai
                                 error={finState.step1Error}
                                 txHash={finState.step1Hash}
                                 onExecute={handleApproveFunds}
-                                disabled={!canExecuteStep1}
+                                disabled={!canExecuteStep1 || !privateKey.trim()}
                             >
                                 {finState.totalCommitted !== null && (
                                     <div className="text-sm space-y-2">
@@ -1013,7 +1051,7 @@ export function CampaignDetailModal({ campaign, isOpen, onClose }: CampaignDetai
                                 currentBatch={finState.currentBatch}
                                 totalBatches={finState.totalBatches}
                                 onExecute={handleExecuteFinalization}
-                                disabled={!canExecuteStep2}
+                                disabled={!canExecuteStep2 || !privateKey.trim()}
                             >
                                 <div className="text-sm space-y-1">
                                     <div>• Transfer USDC to treasury</div>

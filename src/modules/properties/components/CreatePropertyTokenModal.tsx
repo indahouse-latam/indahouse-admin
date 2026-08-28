@@ -263,6 +263,11 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
             return;
         }
 
+        if (!privateKey.trim()) {
+            toast.error('Pega la master private key. El passkey de Nyx no está disponible entre app-qa y admin-qa.');
+            return;
+        }
+
         setIsLoading(true);
 
         try {
@@ -784,7 +789,7 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
                     <div className="space-y-2">
                         <label className="text-sm font-medium flex items-center gap-2">
                             <Settings className="w-4 h-4" />
-                            Master Private Key {managerStatus?.needsSetup ? '*' : '(opcional)'}
+                            Master Private Key *
                         </label>
                         <input
                             type="password"
@@ -793,11 +798,10 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
                             disabled={isLoading}
                             placeholder="0x..."
                             className="w-full bg-secondary border border-border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
+                            required
                         />
                         <p className="text-xs text-muted-foreground">
-                            {managerStatus?.needsSetup
-                                ? 'Solo para crear el manager o grant CERT. El token se firma con passkey de la Safe, salvo que estés en localhost.'
-                                : 'No la uses en QA/prod: ahí el passkey de la wallet de sesión firma el token. En localhost Nyx no puede pedir passkey (RP distinto).'}
+                            Firma con la EOA master. Workaround temporal: el passkey de Nyx de app-qa no se puede usar en admin-qa.
                         </p>
                     </div>
 
@@ -813,7 +817,7 @@ export function CreatePropertyTokenModal({ isOpen, onClose }: CreatePropertyToke
                         </button>
                         <button
                             type="submit"
-                            disabled={isLoading}
+                            disabled={isLoading || !privateKey.trim()}
                             className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-3 rounded-xl font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                         >
                             {isLoading ? (

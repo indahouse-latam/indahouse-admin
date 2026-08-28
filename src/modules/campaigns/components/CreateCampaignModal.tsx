@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, DollarSign, Hash, Plus, Trash2, ShieldCheck, Loader2 } from 'lucide-react';
+import { X, DollarSign, Hash, Plus, Trash2, ShieldCheck, Loader2, Settings } from 'lucide-react';
 import { useCampaigns } from '../hooks/useCampaigns';
 import { encodeFunctionData, parseUnits, decodeEventLog, Abi } from 'viem';
 import { CommitFactoryAbi, ManagerAbi, IndaRootAbi } from '@/config/abis';
@@ -11,6 +11,10 @@ import { usePropertyTokens } from '@/modules/properties/hooks/usePropertyTokens'
 import { toast } from 'sonner';
 import { fetchApi } from '@/utils/api';
 import { useAuth } from '@/providers/AuthProvider';
+
+function formatPrivateKey(value: string): `0x${string}` {
+    return (value.startsWith('0x') ? value : `0x${value}`) as `0x${string}`;
+}
 
 interface FeeTier {
     tier_order: number;
@@ -29,6 +33,7 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
     const { user } = useAuth();
 
     const [isLoading, setIsLoading] = useState(false);
+    const [privateKey, setPrivateKey] = useState('');
     const [loadingStep, setLoadingStep] = useState<'creating' | 'confirming' | 'registering' | 'whitelisting' | 'saving' | null>(null);
     const [propertyTokensWithNames, setPropertyTokensWithNames] = useState<Array<{
         token: any;
@@ -118,6 +123,11 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
 
         if (!formData.property_token_id || !formData.token_address) {
             toast.error('Please select a property token');
+            return;
+        }
+
+        if (!privateKey.trim()) {
+            toast.error('Pega la master private key. El passkey de Nyx no está disponible entre app-qa y admin-qa.');
             return;
         }
 
@@ -237,6 +247,8 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
 
             console.log('📦 Init Data:', initData);
 
+            const writeKey = { privateKey: formatPrivateKey(privateKey.trim()) };
+
             // Step 2: Execute transaction and wait for confirmation
             const { hash, receipt } = await executeAndWaitForTransaction({
                 contractAddress: currentContracts.commitFactory as `0x${string}`,
@@ -244,6 +256,7 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
                 functionName: 'createCampaign',
                 args: [initData],
                 chainId,
+                ...writeKey,
             });
 
             console.log('✅ Transaction confirmed:', hash);
@@ -286,6 +299,7 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
                 functionName: 'registerCampaign',
                 args: [campaignAddress as `0x${string}`],
                 chainId,
+                ...writeKey,
             });
 
             console.log('✅ Campaign registered in Manager:', registerHash);
@@ -303,6 +317,7 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
                     [true],
                 ],
                 chainId,
+                ...writeKey,
             });
 
             console.log('✅ Campaign whitelisted in IndaRoot:', whitelistHash);
@@ -653,6 +668,25 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
                         </div>
                     </div>
 
+                    <div className="space-y-2">
+                        <label className="text-sm font-medium flex items-center gap-2">
+                            <Settings className="w-4 h-4" />
+                            Master Private Key *
+                        </label>
+                        <input
+                            type="password"
+                            value={privateKey}
+                            onChange={(e) => setPrivateKey(e.target.value)}
+                            disabled={isLoading}
+                            placeholder="0x..."
+                            className="w-full bg-secondary border border-border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50 font-mono text-sm"
+                            required
+                        />
+                        <p className="text-xs text-muted-foreground">
+                            Firma con la EOA master. Workaround temporal: el passkey de Nyx de app-qa no se puede usar en admin-qa.
+                        </p>
+                    </div>
+
                     {/* Submit Actions */}
                     <div className="pt-6 border-t border-border flex justify-end gap-4">
                         <button
@@ -664,7 +698,7 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
                         </button>
                         <button
                             type="submit"
-                            disabled={isLoading || !formData.property_token_id}
+                            disabled={isLoading || !formData.property_token_id || !privateKey.trim()}
                             className="px-8 py-2.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all disabled:opacity-50 flex items-center gap-2 text-sm font-bold shadow-lg shadow-primary/20"
                         >
                             {isLoading ? (
