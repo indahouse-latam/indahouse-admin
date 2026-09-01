@@ -4,6 +4,7 @@ import type { BiometricCredential } from 'nyx_wallet';
 
 const DB_NAME = 'indahouse-admin-nyx-biometric';
 const STORE = 'credentials';
+const NYX_AUTHENTICATE_OPTIONS_PATH = '/api/nyx/webauthn/authenticate/options';
 const NYX_REGISTER_OPTIONS_PATH = '/api/nyx/webauthn/register/options';
 const NYX_REGISTER_VERIFY_PATH = '/api/nyx/webauthn/register/verify';
 
@@ -111,11 +112,59 @@ function assertRpMatchesDocumentOrigin(rpId?: string): void {
   }
 }
 
+export interface NyxPasskeyProbe {
+  exists: boolean;
+  rpId?: string;
+  credentialId?: string;
+}
+
+function isUsableCredential(
+  credential: BiometricCredential | null | undefined,
+): credential is BiometricCredential {
+  return Boolean(credential?.credentialId && credential.publicKey);
+}
+
+export async function probeNyxPasskey(params: {
+  fetch: NyxFetch;
+  accessToken: string;
+}): Promise<NyxPasskeyProbe> {
+  const response = await params.fetch(NYX_AUTHENTICATE_OPTIONS_PATH, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${params.accessToken}`,
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({}),
+  });
+  const text = await response.text();
+
+  if (!response.ok) {
+    if (/No registered authenticators/i.test(text)) return { exists: false };
+    throw new Error(
+      `Nyx ${NYX_AUTHENTICATE_OPTIONS_PATH} responded ${response.status}${text ? `: ${text}` : ''}`,
+    );
+  }
+
+  const options = text
+    ? (JSON.parse(text) as {
+        rpId?: string;
+        allowCredentials?: Array<{ id?: string }>;
+      })
+    : {};
+  const credentialId = options.allowCredentials?.find((item) => item.id)?.id;
+  return {
+    exists: Boolean(credentialId),
+    rpId: options.rpId,
+    credentialId,
+  };
+}
+
 function toWebAuthnUserError(error: unknown, rpId?: string): Error {
   if (error instanceof DOMException) {
     if (error.name === 'InvalidStateError') {
       return new Error(
-        'This device already has a passkey registered with Nyx, but it is missing locally. Clear site data for this origin and register again.',
+        'Nyx already has a passkey for this account. Recover the wallet instead of registering a new one.',
       );
     }
     if (error.name === 'SecurityError' || error.name === 'NotAllowedError') {
@@ -253,13 +302,11 @@ export async function registerBiometricCredential(params: {
   return biometricCredential;
 }
 
-export async function getOrRegisterBiometricCredential(params: {
+export async function resolveStoredBiometricCredential(params: {
   userId: string;
-  accessToken: string;
-  fetch: NyxFetch;
   remoteCredential?: BiometricCredential | null;
-}): Promise<BiometricCredential> {
-  if (params.remoteCredential?.credentialId && params.remoteCredential.publicKey) {
+}): Promise<BiometricCredential | null> {
+  if (isUsableCredential(params.remoteCredential)) {
     const stored: StoredBiometricCredential = {
       ...params.remoteCredential,
       nyxRegistered: true,
@@ -269,11 +316,6 @@ export async function getOrRegisterBiometricCredential(params: {
   }
 
   const local = await loadBiometricCredential(params.userId);
-  if (local?.nyxRegistered && local.credentialId && local.publicKey) return local;
-
-  return registerBiometricCredential({
-    userId: params.userId,
-    accessToken: params.accessToken,
-    fetch: params.fetch,
-  });
+  if (local?.nyxRegistered && isUsableCredential(local)) return local;
+  return null;
 }

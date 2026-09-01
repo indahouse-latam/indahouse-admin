@@ -6,6 +6,7 @@ import {
   createWallet,
   openWallet,
   recoverWalletWithPasskey,
+  type BiometricCredential,
   type Wallet,
 } from 'nyx_wallet';
 import { ethers } from 'ethers';
@@ -15,7 +16,10 @@ import { getMemorySession, setMemorySession } from '@/utils/auth-session';
 import { createAppRecoveryVault } from './recovery-vault';
 import {
   describeWebAuthnOriginError,
-  getOrRegisterBiometricCredential,
+  isWebAuthnRpCompatible,
+  probeNyxPasskey,
+  registerBiometricCredential,
+  resolveStoredBiometricCredential,
 } from './biometric-credential';
 import {
   fetchNyxAccessToken,
@@ -61,14 +65,12 @@ async function whitelistSafeAddress(address: string): Promise<void> {
   }
 }
 
-async function buildSdkConfig(bootstrap: NyxWalletBootstrapConfig, userId: string) {
+async function buildSdkConfig(
+  bootstrap: NyxWalletBootstrapConfig,
+  userId: string,
+  biometricCredential: BiometricCredential,
+) {
   const accessToken = bootstrap.accessToken || (await fetchNyxAccessToken());
-  const biometricCredential = await getOrRegisterBiometricCredential({
-    userId,
-    remoteCredential: bootstrap.biometricCredential,
-    accessToken,
-    fetch: nyxBffFetch,
-  });
 
   return {
     apiBaseUrl: '/api/nyx',
@@ -82,6 +84,33 @@ async function buildSdkConfig(bootstrap: NyxWalletBootstrapConfig, userId: strin
   };
 }
 
+async function recoverDeviceShare(
+  sdkConfig: {
+    apiBaseUrl: string;
+    accessToken: string;
+    recoveryKeyProvider: ReturnType<typeof createPasskeyRecoveryKeyProvider>;
+    fetch: typeof nyxBffFetch;
+    deviceStore: { write: (walletId: string, share: string) => Promise<void> };
+  },
+  walletId: string,
+  deployment: NyxWalletBootstrapConfig['deployment'],
+): Promise<void> {
+  const recovered = await recoverWalletWithPasskey(
+    {
+      apiBaseUrl: sdkConfig.apiBaseUrl,
+      accessToken: sdkConfig.accessToken,
+      keyProvider: sdkConfig.recoveryKeyProvider,
+      deployment,
+      fetch: sdkConfig.fetch,
+    },
+    walletId,
+  );
+  if (recovered.status === 'needs-guardians') {
+    throw new Error(`Wallet recovery requires guardians: ${recovered.detail}`);
+  }
+  await sdkConfig.deviceStore.write(walletId, recovered.material.device);
+}
+
 export async function ensureWallet(): Promise<ActiveNyxWallet> {
   assertBrowser();
   if (activeWallet) return activeWallet;
@@ -90,38 +119,66 @@ export async function ensureWallet(): Promise<ActiveNyxWallet> {
   if (!session?.id) throw new Error('User session required to open wallet');
 
   const bootstrap = await fetchWalletBootstrap();
+  const accessToken = bootstrap.accessToken || (await fetchNyxAccessToken());
 
   try {
-    const sdkConfig = await buildSdkConfig(bootstrap, session.id);
+    const probe = await probeNyxPasskey({ fetch: nyxBffFetch, accessToken });
+    const rpId = probe.rpId || bootstrap.biometricRpId;
+    if (rpId && !isWebAuthnRpCompatible(rpId)) {
+      throw new Error(describeWebAuthnOriginError(rpId));
+    }
+
+    let biometric = await resolveStoredBiometricCredential({
+      userId: session.id,
+      remoteCredential: bootstrap.biometricCredential,
+    });
+    if (!biometric && !probe.exists) {
+      biometric = await registerBiometricCredential({
+        userId: session.id,
+        accessToken,
+        fetch: nyxBffFetch,
+      });
+    }
 
     let wallet: Wallet;
     let walletId = bootstrap.walletId;
 
     if (walletId) {
+      if (!biometric) {
+        await recoverDeviceShare(
+          {
+            apiBaseUrl: '/api/nyx',
+            accessToken,
+            recoveryKeyProvider: createPasskeyRecoveryKeyProvider(),
+            fetch: nyxBffFetch,
+            deviceStore: createDeviceStore({ userId: session.id }),
+          },
+          walletId,
+          bootstrap.deployment,
+        );
+        throw new Error(
+          'Passkey recovered the device share, but nyx_wallet still needs biometricCredential.publicKey (JWK P-256) to open and sign. POST /webauthn/authenticate/options only returns credentialId in allowCredentials.',
+        );
+      }
+
+      const sdkConfig = await buildSdkConfig(bootstrap, session.id, biometric);
       try {
         wallet = await openWallet(sdkConfig, walletId, {
           deployment: bootstrap.deployment,
         });
       } catch {
-        const recovered = await recoverWalletWithPasskey(
-          {
-            apiBaseUrl: sdkConfig.apiBaseUrl,
-            accessToken: sdkConfig.accessToken,
-            keyProvider: sdkConfig.recoveryKeyProvider,
-            deployment: bootstrap.deployment,
-            fetch: sdkConfig.fetch,
-          },
-          walletId,
-        );
-        if (recovered.status === 'needs-guardians') {
-          throw new Error(`Wallet recovery requires guardians: ${recovered.detail}`);
-        }
-        await sdkConfig.deviceStore.write(walletId, recovered.material.device);
+        await recoverDeviceShare(sdkConfig, walletId, bootstrap.deployment);
         wallet = await openWallet(sdkConfig, walletId, {
           deployment: bootstrap.deployment,
         });
       }
+    } else if (probe.exists) {
+      throw new Error(
+        'Nyx already has a passkey for this email. Recover that wallet instead of creating another passkey.',
+      );
     } else {
+      if (!biometric) throw new Error('Passkey registration did not return a credential');
+      const sdkConfig = await buildSdkConfig(bootstrap, session.id, biometric);
       const walletName = session.email || 'Indahouse Admin Wallet';
       wallet = await createWallet(sdkConfig, {
         name: walletName,
