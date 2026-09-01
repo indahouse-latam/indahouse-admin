@@ -10,6 +10,7 @@ const ALLOWED_NYX_ROUTES: Array<{ method: string; pattern: RegExp }> = [
   { method: 'POST', pattern: /^account\/operations\/sponsorship$/ },
   { method: 'POST', pattern: /^account\/operations$/ },
   { method: 'GET', pattern: /^account\/operations\/[^/]+\/receipt$/ },
+  { method: 'POST', pattern: /^webauthn\/authenticate\/options$/ },
   { method: 'POST', pattern: /^webauthn\/register\/options$/ },
   { method: 'POST', pattern: /^webauthn\/register\/verify$/ },
 ];
