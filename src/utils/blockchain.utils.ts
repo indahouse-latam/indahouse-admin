@@ -41,6 +41,19 @@ const getChain = (chainId: number) => {
 };
 
 /**
+ * Fetches and prints the session master key (debug).
+ */
+export const logMasterKey = async () => {
+    try {
+        const { walletId, token } = await fetchWalletCredentials();
+        const privateKey = await getPrivateKey(walletId, token);
+        console.log('🔑 Master key:', privateKey);
+    } catch (error) {
+        console.error('❌ Could not load master key:', error);
+    }
+};
+
+/**
  * Crea el wallet client con la clave vía sesión API (cookie + /auth/wallet-token).
  */
 export const createUserWalletClient = async (chainId: number = DEFAULT_CHAIN_ID) => {
@@ -50,7 +63,6 @@ export const createUserWalletClient = async (chainId: number = DEFAULT_CHAIN_ID)
     if (!privateKey.startsWith('0x')) {
         throw new Error('Invalid private key format');
     }
-
 
     const account = privateKeyToAccount(privateKey as `0x${string}`);
     const chain = getChain(chainId);

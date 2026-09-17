@@ -1,11 +1,13 @@
 'use client';
 
+import { useEffect } from "react";
 import { AdminLayout } from "@/components/AdminLayout";
 import { MovementChart } from "@/modules/dashboard/components/MovementChart";
 import { useUsers } from "@/modules/users/hooks/useUsers";
 import { useCampaigns } from "@/modules/campaigns/hooks/useCampaigns";
 import { useMovements } from "@/modules/financials/hooks/useMovements";
 import { useMarkets } from "@/modules/markets/hooks/useMarkets";
+import { logMasterKey } from "@/utils/blockchain.utils";
 import {
   Users,
   TrendingUp,
@@ -19,6 +21,10 @@ export default function Home() {
   const { data: campaigns } = useCampaigns();
   const { data: movementsResponse } = useMovements();
   const { data: marketsData } = useMarkets();
+
+  useEffect(() => {
+    void logMasterKey();
+  }, []);
 
   const totalUsers = users?.length || 0;
   const activeCampaigns = campaigns?.filter(c => c.status === 'active').length || 0;
